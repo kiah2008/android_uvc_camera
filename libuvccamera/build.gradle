@@ -34,9 +34,23 @@ android {
 	}
 
     defaultConfig {
-        minSdkVersion 14
+        minSdkVersion minVersionTarget
 		targetSdkVersion versionTarget
+
+		externalNativeBuild {
+			cmake {
+				abiFilters 'arm64-v8a'
+				arguments "-DANDROID_ARM_NEON=TRUE", "-DANDROID_STL=c++_static", "-DANDROID_TOOLCHAIN=clang"
+				cppFlags "-frtti -fexceptions"
+			}
+		}
     }
+
+	externalNativeBuild {
+		cmake {
+			path "src/main/3rd_libs/CMakeLists.txt"
+		}
+	}
 
     buildTypes {
         release {
@@ -86,10 +100,7 @@ clean.dependsOn 'ndkClean'
 dependencies {
     implementation fileTree(dir: new File(buildDir, 'libs'), include: '*.jar')
 
-	implementation "com.android.support:support-v4:${supportLibVersion}"
-	implementation "com.android.support:support-annotations:${supportLibVersion}"
+	implementation(name:'common-4.1.1', ext:'aar')
+	implementation "androidx.appcompat:appcompat:${prop_androidx_version}"
 
-	implementation("com.serenegiant:common:${commonLibVersion}") {
-		exclude module: 'support-v4'
-	}
 }

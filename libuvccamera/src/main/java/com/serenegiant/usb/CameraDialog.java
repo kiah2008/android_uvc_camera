@@ -34,6 +34,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.hardware.usb.UsbDevice;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.View.OnClickListener;
@@ -170,6 +171,7 @@ public class CameraDialog extends DialogFragment {
 		public void onClick(final DialogInterface dialog, final int which) {
 			switch (which) {
 			case DialogInterface.BUTTON_POSITIVE:
+				Log.d(TAG, "do request permission\n");
 				final Object item = mSpinner.getSelectedItem();
 				if (item instanceof UsbDevice) {
 					mUSBMonitor.requestPermission((UsbDevice)item);
@@ -177,6 +179,7 @@ public class CameraDialog extends DialogFragment {
 				}
 				break;
 			case DialogInterface.BUTTON_NEGATIVE:
+				Log.d(TAG, "cancel devices\n");
 				((CameraDialogParent)getActivity()).onDialogResult(true);
 				break;
 			}

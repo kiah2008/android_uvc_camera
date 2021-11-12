@@ -50,10 +50,11 @@ import android.util.SparseArray;
 
 import com.serenegiant.utils.BuildCheck;
 import com.serenegiant.utils.HandlerThreadHandler;
+import com.serenegiant.uvccamera.BuildConfig;
 
 public final class USBMonitor {
 
-	private static final boolean DEBUG = false;	// TODO set false on production
+	private static final boolean DEBUG = BuildConfig.BUILD_TYPE =="debug";	// TODO set false on production
 	private static final String TAG = "USBMonitor";
 
 	private static final String ACTION_USB_PERMISSION_BASE = "com.serenegiant.USB_PERMISSION.";
@@ -415,7 +416,7 @@ public final class USBMonitor {
 	 * @return true if fail to request permission
 	 */
 	public synchronized boolean requestPermission(final UsbDevice device) {
-//		if (DEBUG) Log.v(TAG, "requestPermission:device=" + device);
+		if (DEBUG) Log.v(TAG, "requestPermission:device=" + device);
 		boolean result = false;
 		if (isRegistered()) {
 			if (device != null) {
@@ -438,6 +439,7 @@ public final class USBMonitor {
 				result = true;
 			}
 		} else {
+			Log.w(TAG, "device not registerd");
 			processCancel(device);
 			result = true;
 		}
@@ -482,6 +484,7 @@ public final class USBMonitor {
 							processConnect(device);
 						}
 					} else {
+						Log.e(TAG, "fail to request permission");
 						// failed to get permission
 						processCancel(device);
 					}

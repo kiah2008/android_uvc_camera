@@ -1,8 +1,8 @@
 language: cpp
 
 compiler:
- - clang
- - gcc
+  - clang
+  - gcc
 
 env:
   matrix:
@@ -30,7 +30,7 @@ script:
   - make -C build/gmake -f test.make    config=${CONF}${BITS}
   - make -C build/gmake -f example.make config=${CONF}${BITS}
   - pushd bin
-  -  ./unittest_${CONF}_x${BITS}_gmake
+  - ./unittest_${CONF}_x${BITS}_gmake
   - valgrind --leak-check=full --error-exitcode=1 ./unittest_${CONF}_x${BITS}_gmake
   - if [ "$CONF" = "release" ]; then ./perftest_${CONF}_x${BITS}_gmake; fi
   - popd
