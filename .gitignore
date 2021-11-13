@@ -1,2 +1,4 @@
+*/build/
 .idea/
-libuvccamera/src/main/libs
+.gradle/
+*/.cxx/
