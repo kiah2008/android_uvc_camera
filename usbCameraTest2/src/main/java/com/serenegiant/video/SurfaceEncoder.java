@@ -32,8 +32,10 @@ import android.media.MediaMuxer;
 import android.util.Log;
 import android.view.Surface;
 
+import com.serenegiant.uvccamera.BuildConfig;
+
 public class SurfaceEncoder extends Encoder {
-	private static final boolean DEBUG = true;	// set false when releasing
+	private static final boolean DEBUG = BuildConfig.BUILD_TYPE =="debug";	// set false when releasing
 	private static final String TAG = "SurfaceEncoder";
 
 	private static final String MIME_TYPE = "video/avc";

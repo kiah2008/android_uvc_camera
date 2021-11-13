@@ -58,7 +58,7 @@ import com.serenegiant.widget.CameraViewInterface;
 
 public class CameraFragment extends BaseFragment {
 
-	private static final boolean DEBUG = true;
+	private static final boolean DEBUG = BuildConfig.BUILD_TYPE =="debug";
 	private static final String TAG = "CameraFragment";
 
 	private static final int DEFAULT_WIDTH = 640;

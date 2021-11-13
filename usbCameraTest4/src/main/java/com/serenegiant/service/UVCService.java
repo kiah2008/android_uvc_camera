@@ -38,11 +38,14 @@ import com.serenegiant.common.BaseService;
 import com.serenegiant.usb.USBMonitor;
 import com.serenegiant.usb.USBMonitor.OnDeviceConnectListener;
 import com.serenegiant.usb.USBMonitor.UsbControlBlock;
+import com.serenegiant.usbcameratest4.BuildConfig;
 import com.serenegiant.usbcameratest4.MainActivity;
 import com.serenegiant.usbcameratest4.R;
 
+import java.io.FileNotFoundException;
+
 public class UVCService extends BaseService {
-	private static final boolean DEBUG = true;
+	private static final boolean DEBUG = BuildConfig.BUILD_TYPE =="debug";
 	private static final String TAG = "UVCService";
 
 	private static final int NOTIFICATION = R.string.app_name;
@@ -410,7 +413,12 @@ public class UVCService extends BaseService {
 			if (DEBUG) Log.d(TAG, "mBasicBinder#captureStillImage:" + path);
 			final CameraServer server = getCameraServer(serviceId);
 			if (server != null) {
-				server.captureStill(path);
+				try {
+					server.captureStill(path);
+				} catch (FileNotFoundException e) {
+					Log.d(TAG, "error to capture "+e);
+					e.printStackTrace();
+				}
 			}
 		}
 

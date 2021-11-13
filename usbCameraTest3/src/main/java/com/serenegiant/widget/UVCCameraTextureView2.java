@@ -42,7 +42,7 @@ import com.serenegiant.encoder.MediaEncoder;
 public class UVCCameraTextureView2 extends TextureView	// API >= 14
 	implements CameraViewInterface, TextureView.SurfaceTextureListener {
 
-//	private static final boolean DEBUG = true;	// TODO set false on release
+//	private static final boolean DEBUG = BuildConfig.BUILD_TYPE =="debug";	// TODO set false on release
 //	private static final String TAG = "UVCCameraTextureView2";
 
 	private double mRequestedAspect = -1.0;

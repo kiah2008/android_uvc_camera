@@ -40,9 +40,10 @@ import android.view.Surface;
 
 import com.serenegiant.service.IUVCService;
 import com.serenegiant.service.IUVCServiceCallback;
+import com.serenegiant.usbcameratest4.BuildConfig;
 
 public class CameraClient implements ICameraClient {
-	private static final boolean DEBUG = true;
+	private static final boolean DEBUG = BuildConfig.BUILD_TYPE =="debug";
 	private static final String TAG = "CameraClient";
 
 	protected final WeakReference<Context> mWeakContext;

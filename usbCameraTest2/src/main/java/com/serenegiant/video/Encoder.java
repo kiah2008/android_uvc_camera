@@ -33,8 +33,10 @@ import android.media.MediaFormat;
 import android.media.MediaMuxer;
 import android.util.Log;
 
+import com.serenegiant.usbcameratest2.BuildConfig;
+
 public abstract class Encoder implements Runnable {
-	private static final boolean DEBUG = true;	// TODO set false on release
+	private static final boolean DEBUG = BuildConfig.BUILD_TYPE =="debug";	// TODO set false on release
 	private static final String TAG = "Encoder";
 
 	protected static final int TIMEOUT_USEC = 10000;	// 10[msec]
@@ -327,6 +329,7 @@ LOOP:	while (mIsCapturing) {
 				// get output format from codec and pass them to muxer
 				// getOutputFormat should be called after INFO_OUTPUT_FORMAT_CHANGED otherwise crash.
                 final MediaFormat format = mMediaCodec.getOutputFormat(); // API >= 16
+				Log.d(TAG, "output format " + format);
                	mTrackIndex = mMuxer.addTrack(format);
                	mMuxerStarted = true;
                	mMuxer.start();

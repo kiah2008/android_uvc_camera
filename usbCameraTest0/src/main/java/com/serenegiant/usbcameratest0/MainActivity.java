@@ -42,7 +42,7 @@ import com.serenegiant.usb.USBMonitor.UsbControlBlock;
 import com.serenegiant.usb.UVCCamera;
 
 public class MainActivity extends BaseActivity implements CameraDialog.CameraDialogParent {
-	private static final boolean DEBUG = true;	// TODO set false when production
+	private static final boolean DEBUG = BuildConfig.BUILD_TYPE =="debug";	// TODO set false when production
 	private static final String TAG = "MainActivity";
 
     private final Object mSync = new Object();

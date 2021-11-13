@@ -38,9 +38,10 @@ import android.view.Surface;
 import android.view.SurfaceHolder;
 
 import com.serenegiant.usb.USBMonitor.UsbControlBlock;
+import com.serenegiant.uvccamera.BuildConfig;
 
 public class UVCCamera {
-	private static final boolean DEBUG = false;	// TODO set false when releasing
+	private static final boolean DEBUG = BuildConfig.BUILD_TYPE =="debug";	// TODO set false when releasing
 	private static final String TAG = UVCCamera.class.getSimpleName();
 	private static final String DEFAULT_USBFS = "/dev/bus/usb";
 
@@ -116,7 +117,7 @@ public class UVCCamera {
 	private static boolean isLoaded;
 	static {
 		if (!isLoaded) {
-			System.loadLibrary("turbojpeg");
+			System.loadLibrary("jpeg");
 			System.loadLibrary("usb1.0");
 			System.loadLibrary("uvc");
 			System.loadLibrary("uvccamera");

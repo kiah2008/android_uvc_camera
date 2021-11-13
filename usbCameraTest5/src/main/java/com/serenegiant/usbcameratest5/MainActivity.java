@@ -36,6 +36,7 @@ import android.widget.ImageButton;
 import android.widget.Toast;
 import android.widget.ToggleButton;
 
+import com.serenegiant.camera.UVCCameraHandler;
 import com.serenegiant.common.BaseActivity;
 
 import com.serenegiant.usb.CameraDialog;
@@ -43,11 +44,10 @@ import com.serenegiant.usb.USBMonitor;
 import com.serenegiant.usb.USBMonitor.OnDeviceConnectListener;
 import com.serenegiant.usb.USBMonitor.UsbControlBlock;
 import com.serenegiant.usb.UVCCamera;
-import com.serenegiant.usbcameracommon.UVCCameraHandler;
 import com.serenegiant.widget.CameraViewInterface;
 
 public final class MainActivity extends BaseActivity implements CameraDialog.CameraDialogParent {
-	private static final boolean DEBUG = true;	// TODO set false on release
+	private static final boolean DEBUG = BuildConfig.BUILD_TYPE =="debug";	// TODO set false on release
 	private static final String TAG = "MainActivity";
 
     /**

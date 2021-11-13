@@ -39,7 +39,7 @@ import com.serenegiant.encoder.MediaEncoder;
 import com.serenegiant.encoder.MediaVideoEncoder;
 import com.serenegiant.glutils.EGLBase;
 import com.serenegiant.glutils.GLDrawer2D;
-import com.serenegiant.glutils.es1.GLHelper;
+import com.serenegiant.glutils.GLHelper;
 import com.serenegiant.utils.FpsCounter;
 
 /**

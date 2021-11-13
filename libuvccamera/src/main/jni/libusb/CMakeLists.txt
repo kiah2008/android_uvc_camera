@@ -38,7 +38,6 @@ debug_message("CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 
 debug_message("VERSION = ${VERSION}, BUILD = ${BUILD}")
 
-message(WARNING "==== ${CMAKE_SYSTEM_PROCESSOR} ${CMAKE_SIZEOF_VOID_P}")
 # Detect CPU type and whether we're building 64-bit or 32-bit code
 math(EXPR BITS "${CMAKE_SIZEOF_VOID_P} * 8")
 string(TOLOWER ${CMAKE_SYSTEM_PROCESSOR} CMAKE_SYSTEM_PROCESSOR_LC)
@@ -88,8 +87,6 @@ if(MSVC_IDE AND CMAKE_GENERATOR_PLATFORM MATCHES "arm64")
     set(CPU_TYPE arm64)
 endif()
 
-message(WARNING "==== ${BITS}-bit build (${CPU_TYPE})")
-
 ###############################################################################
 # INSTALL DIRECTORIES
 ###############################################################################
@@ -112,8 +109,6 @@ message(WARNING "==== ${BITS}-bit build (${CPU_TYPE})")
 #            "Directory into which to install ${CMAKE_PROJECT_NAME} (default: ${CMAKE_INSTALL_DEFAULT_PREFIX})"
 #            FORCE)
 #endif()
-message(WARNING "======CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
-
 
 ###############################################################################
 # CONFIGURATION OPTIONS

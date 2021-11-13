@@ -82,8 +82,6 @@ if(BUILD_UVC_SHARED)
   add_library(LibUVC::UVCShared ALIAS uvc)
 endif()
 
-message(WARNING "====== cmake v= ${CMAKE_CURRENT_BINARY_DIR} ${libjpeg-turbo_BINARY_DIR} ${ALL_INCLUDE}")
-
 LIST(APPEND ALL_INCLUDE
         ${CMAKE_CURRENT_BINARY_DIR}
         ${LibUSB_SOURCE_DIR}/

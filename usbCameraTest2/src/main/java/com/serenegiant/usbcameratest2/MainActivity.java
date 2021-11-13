@@ -58,7 +58,7 @@ import com.serenegiant.video.SurfaceEncoder;
 import com.serenegiant.widget.SimpleUVCCameraTextureView;
 
 public final class MainActivity extends BaseActivity implements CameraDialog.CameraDialogParent {
-	private static final boolean DEBUG = true;	// set false when releasing
+	private static final boolean DEBUG = BuildConfig.BUILD_TYPE =="debug";	// set false when releasing
 	private static final String TAG = "MainActivity";
 
     private static final int CAPTURE_STOP = 0;
@@ -184,11 +184,17 @@ public final class MainActivity extends BaseActivity implements CameraDialog.Cam
 					mUVCCamera = null;
 				}
 			}
+			Log.d(TAG, "device connected "+ctrlBlock);
 			queueEvent(new Runnable() {
 				@Override
 				public void run() {
 					final UVCCamera camera = new UVCCamera();
-					camera.open(ctrlBlock);
+					try {
+						camera.open(ctrlBlock);
+					} catch(Exception e) {
+						Log.e(TAG, "open camera failed "+ e);
+						return;
+					}
 					if (DEBUG) Log.i(TAG, "supportedSize:" + camera.getSupportedSize());
 					if (mPreviewSurface != null) {
 						mPreviewSurface.release();
@@ -215,7 +221,7 @@ public final class MainActivity extends BaseActivity implements CameraDialog.Cam
 						mUVCCamera = camera;
 					}
 				}
-			}, 0);
+			}, 30);
 		}
 
 		@Override
