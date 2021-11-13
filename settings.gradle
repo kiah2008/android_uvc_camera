@@ -3,31 +3,38 @@ dependencyResolutionManagement {
     repositories {
         maven {
             allowInsecureProtocol true
-            url 'http://maven.aliyun.com/nexus/content/groups/public/'
+            url 'http://maven.aliyun.com/nexus/content/groups/public'
         }
 
-        maven {
-            allowInsecureProtocol true
-            url 'http://raw.github.com/saki4510t/libcommon/master/repository/'
-        }
+//        maven {
+//            allowInsecureProtocol true
+//            url 'http://maven.aliyun.com/nexus/content/groups/google'
+//        }
+
+        google()
+//        maven {
+//            allowInsecureProtocol true
+//            url 'http://raw.github.com/saki4510t/libcommon/master/jcenter'
+//        }
+//
+//        maven {
+//            allowInsecureProtocol true
+//            url 'http://raw.github.com/saki4510t/libcommon/master/repository/'
+//        }
 
         flatDir {
             dirs 'aars'
         }
-        google()
         mavenCentral()
-        jcenter() // Warning: this repository is going to shut down soon
-
-
     }
 }
 
 include ':libuvccamera'
-include ':usbCameraCommon'
-include ':3rd_libs'
-//include ':usbCameraTest'
-//include ':usbCameraTest0'
-//include ':usbCameraTest2'
+//include ':usbCameraCommon'
+//include ':3rd_libs'
+include ':usbCameraTest'
+include ':usbCameraTest0'
+include ':usbCameraTest2'
 //include ':usbCameraTest3'
 //include ':usbCameraTest4'
 //include ':usbCameraTest5'

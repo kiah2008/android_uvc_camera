@@ -763,7 +763,6 @@ out:
  */
 libusb_device *libusb_find_device(libusb_context *ctx, const int vid,
 		const int pid, const char* sn, int fd) {
-
 	ENTER();
 
 	libusb_device **devs;

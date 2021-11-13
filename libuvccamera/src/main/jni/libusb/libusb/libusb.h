@@ -1358,6 +1358,9 @@ enum libusb_log_level {
 	LIBUSB_LOG_LEVEL_DEBUG,
 };
 
+#define API_PUBLIC __attribute__((visibility("default")))
+
+
 int LIBUSB_CALL libusb_init(libusb_context **ctx);
 int LIBUSB_CALL libusb_init2(libusb_context **ctx, const char *usbfs);
 void LIBUSB_CALL libusb_exit(libusb_context *ctx);
@@ -1373,8 +1376,10 @@ ssize_t LIBUSB_CALL libusb_get_device_list(libusb_context *ctx,
 void LIBUSB_CALL libusb_free_device_list(libusb_device **list,
 	int unref_devices);
 libusb_device * LIBUSB_CALL libusb_ref_device(libusb_device *dev);
+
 void LIBUSB_CALL libusb_unref_device(libusb_device *dev);
-libusb_device *libusb_find_device(libusb_context *ctx,
+
+API_PUBLIC libusb_device *libusb_find_device(libusb_context *ctx,
 	const int vid, const int pid, const char *sn, int fd);	// XXX add for mainly non-rooted Android
 
 int LIBUSB_CALL libusb_get_raw_descriptor(libusb_device *dev,
@@ -1431,8 +1436,10 @@ int LIBUSB_CALL libusb_get_max_iso_packet_size(libusb_device *dev,
 	unsigned char endpoint);
 
 int LIBUSB_CALL libusb_set_device_fd(libusb_device *dev, int fd);	// XXX add for mainly non-rooted Android
-libusb_device * LIBUSB_CALL libusb_get_device_with_fd(libusb_context *ctx,
+
+API_PUBLIC libusb_device * LIBUSB_CALL libusb_get_device_with_fd(libusb_context *ctx,
 	int vid, int pid, const char *serial, int fd, int busnum, int devaddr);
+
 int LIBUSB_CALL libusb_open(libusb_device *dev, libusb_device_handle **handle);
 void LIBUSB_CALL libusb_close(libusb_device_handle *dev_handle);
 libusb_device * LIBUSB_CALL libusb_get_device(libusb_device_handle *dev_handle);

@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <!--
   ~  UVCCamera
   ~  library and sample to access to UVC web camera on non-rooted Android device
@@ -23,9 +24,11 @@
 
 <resources>
 
-	<!-- Base application theme. -->
-	<style name="AppTheme" parent="android:Theme.Holo.Light.DarkActionBar">
-		<!-- Customize your theme here. -->
+	<!--
+        Base application theme, dependent on API level. This theme is replaced
+        by AppBaseTheme from res/values-vXX/styles.xml on newer devices.
+    -->
+	<style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
 	</style>
 
 </resources>

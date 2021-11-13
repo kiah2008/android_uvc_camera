@@ -2,3 +2,4 @@
 .idea/
 .gradle/
 */.cxx/
+3rd_libs/libusb/msvc/

@@ -22,7 +22,6 @@ apply plugin: 'com.android.library'
  *  may have a different license, see the respective files.
  */
 
-import org.apache.tools.ant.taskdefs.condition.Os
 
 android {
 	compileSdkVersion versionCompiler
@@ -36,9 +35,20 @@ android {
     defaultConfig {
         minSdkVersion minVersionTarget
 		targetSdkVersion versionTarget
-
+		externalNativeBuild {
+			cmake {
+				abiFilters 'arm64-v8a'
+				arguments "-DANDROID_ARM_NEON=TRUE", "-DANDROID_STL=c++_static", "-DANDROID_TOOLCHAIN=clang"
+				cppFlags "-frtti -fexceptions"
+			}
+		}
     }
 
+	externalNativeBuild {
+		cmake {
+			path "src/main/jni/CMakeLists.txt"
+		}
+	}
 
     buildTypes {
         release {
@@ -90,6 +100,6 @@ dependencies {
 
 	implementation(name:'common-4.1.1', ext:'aar')
 	implementation "androidx.appcompat:appcompat:${prop_androidx_version}"
-	implementation project(':3rd_libs')
+//	implementation project(':3rd_libs')
 
 }
