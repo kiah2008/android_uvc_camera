@@ -60,8 +60,6 @@ public final class USBMonitor {
 	private static final String ACTION_USB_PERMISSION_BASE = "com.serenegiant.USB_PERMISSION.";
 	private final String ACTION_USB_PERMISSION = ACTION_USB_PERMISSION_BASE + hashCode();
 
-	public static final String ACTION_USB_DEVICE_ATTACHED = "android.hardware.usb.action.USB_DEVICE_ATTACHED";
-
 	/**
 	 * openしているUsbControlBlock
 	 */
@@ -171,6 +169,7 @@ public final class USBMonitor {
 				mPermissionIntent = PendingIntent.getBroadcast(context, 0, new Intent(ACTION_USB_PERMISSION), 0);
 				final IntentFilter filter = new IntentFilter(ACTION_USB_PERMISSION);
 				// ACTION_USB_DEVICE_ATTACHED never comes on some devices so it should not be added here
+				filter.addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED);
 				filter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED);
 				context.registerReceiver(mUsbReceiver, filter);
 			}
@@ -490,10 +489,15 @@ public final class USBMonitor {
 					}
 				}
 			} else if (UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(action)) {
+				if(DEBUG)
+					Log.d(TAG, "received usb attached.");
 				final UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
 				updatePermission(device, hasPermission(device));
+				//request for permission using USBMonitor.requestPermission();
 				processAttach(device);
 			} else if (UsbManager.ACTION_USB_DEVICE_DETACHED.equals(action)) {
+				if(DEBUG)
+					Log.d(TAG, "received usb detached.");
 				// when device removed
 				final UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
 				if (device != null) {
@@ -544,7 +548,7 @@ public final class USBMonitor {
 					}
 				}
 			}
-			mAsyncHandler.postDelayed(this, 2000);	// confirm every 2 seconds
+			mAsyncHandler.postDelayed(this, 1000);	// confirm every 1 seconds
 		}
 	};
 

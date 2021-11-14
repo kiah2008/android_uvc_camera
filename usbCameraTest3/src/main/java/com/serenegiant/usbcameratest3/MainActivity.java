@@ -23,6 +23,7 @@
 
 package com.serenegiant.usbcameratest3;
 
+import android.Manifest;
 import android.graphics.SurfaceTexture;
 import android.hardware.usb.UsbDevice;
 import android.os.Bundle;
@@ -45,6 +46,8 @@ import com.serenegiant.usb.USBMonitor.OnDeviceConnectListener;
 import com.serenegiant.usb.USBMonitor.UsbControlBlock;
 import com.serenegiant.usb.UVCCamera;
 import com.serenegiant.widget.CameraViewInterface;
+
+import java.util.Arrays;
 
 public final class MainActivity extends BaseActivity implements CameraDialog.CameraDialogParent {
 	private static final boolean DEBUG = BuildConfig.BUILD_TYPE =="debug";	// TODO set false on release
@@ -120,6 +123,13 @@ public final class MainActivity extends BaseActivity implements CameraDialog.Cam
 		mUSBMonitor = new USBMonitor(this, mOnDeviceConnectListener);
 		mCameraHandler = UVCCameraHandler.createHandler(this, mUVCCameraView,
 			USE_SURFACE_ENCODER ? 0 : 1, PREVIEW_WIDTH, PREVIEW_HEIGHT, PREVIEW_MODE);
+
+		checkAndRequestPermissions(Arrays.asList(
+				Manifest.permission.CAMERA,
+				Manifest.permission.WRITE_EXTERNAL_STORAGE,
+				Manifest.permission.READ_EXTERNAL_STORAGE,
+				Manifest.permission.RECORD_AUDIO
+		));
 	}
 
 	@Override

@@ -35,11 +35,16 @@ import android.util.Log;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import com.serenegiant.dialog.MessageDialogFragmentV4;
 import com.serenegiant.utils.BuildCheck;
 import com.serenegiant.utils.HandlerThreadHandler;
 import com.serenegiant.utils.PermissionCheck;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Created by saki on 2016/11/18.
@@ -57,6 +62,10 @@ public class BaseActivity extends AppCompatActivity
 	/** ワーカースレッド上で処理するためのHandler */
 	private Handler mWorkerHandler;
 	private long mWorkerThreadID = -1;
+
+	private static final int REQUEST_CODE = 1;
+	private List<String> mMissPermissions = new ArrayList<>();
+	private int mRequestCode = -1;
 
 	@Override
 	protected void onCreate(final Bundle savedInstanceState) {
@@ -229,20 +238,19 @@ public class BaseActivity extends AppCompatActivity
 		}
 	}
 
-	/**
-	 * パーミッション要求結果を受け取るためのメソッド
-	 * @param requestCode
-	 * @param permissions
-	 * @param grantResults
-	 */
-	@Override
-	public void onRequestPermissionsResult(final int requestCode, @NonNull final String[] permissions, @NonNull final int[] grantResults) {
-		super.onRequestPermissionsResult(requestCode, permissions, grantResults);	// 何もしてないけど一応呼んどく
-		final int n = Math.min(permissions.length, grantResults.length);
-		for (int i = 0; i < n; i++) {
-			checkPermissionResult(requestCode, permissions[i], grantResults[i] == PackageManager.PERMISSION_GRANTED);
-		}
-	}
+//     /*
+//	 * パーミッション要求結果を受け取るためのメソッド
+//	 * @param requestCode
+//	 * @param permissions
+//	 * @param grantResults*/
+//	@Override
+//	public void onRequestPermissionsResult(final int requestCode, @NonNull final String[] permissions, @NonNull final int[] grantResults) {
+//		super.onRequestPermissionsResult(requestCode, permissions, grantResults);	// 何もしてないけど一応呼んどく
+//		final int n = Math.min(permissions.length, grantResults.length);
+//		for (int i = 0; i < n; i++) {
+//			checkPermissionResult(requestCode, permissions[i], grantResults[i] == PackageManager.PERMISSION_GRANTED);
+//		}
+//	}
 
 	/**
 	 * パーミッション要求の結果をチェック
@@ -262,6 +270,9 @@ public class BaseActivity extends AppCompatActivity
 			}
 			if (Manifest.permission.INTERNET.equals(permission)) {
 				showToast(R.string.permission_network);
+			}
+			if (Manifest.permission.CAMERA.equals(permission)) {
+				Toast.makeText(this, "no Camera Permission", Toast.LENGTH_SHORT).show();
 			}
 		}
 	}
@@ -332,4 +343,43 @@ public class BaseActivity extends AppCompatActivity
 		return true;
 	}
 
+	public void checkAndRequestPermissions(List<String> permissions) {
+		mMissPermissions.clear();
+		for (String permission : permissions) {
+			int result = ContextCompat.checkSelfPermission(this, permission);
+			if (result != PackageManager.PERMISSION_GRANTED) {
+				mMissPermissions.add(permission);
+			}
+		}
+		// check permissions has granted
+		if (!mMissPermissions.isEmpty()) {
+			ActivityCompat.requestPermissions(this,
+					mMissPermissions.toArray(new String[mMissPermissions.size()]),
+					REQUEST_CODE);
+		}
+	}
+
+	@Override
+	public void onRequestPermissionsResult(final int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+		super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+		if (requestCode == REQUEST_CODE) {
+			for (int i = grantResults.length - 1; i >= 0; i--) {
+				if (grantResults[i] == PackageManager.PERMISSION_GRANTED) {
+					mMissPermissions.remove(permissions[i]);
+				}
+			}
+		}
+		// Get permissions success or not
+		if (!mMissPermissions.isEmpty()) {
+			final int n = mMissPermissions.size();
+			for (int i = 0; i < n; i++) {
+				checkPermissionResult(requestCode, mMissPermissions.get(i), false);
+			}
+		} else {
+			final int n = Math.min(permissions.length, grantResults.length);
+			for (int i = 0; i < n; i++) {
+				checkPermissionResult(requestCode, permissions[i], grantResults[i] == PackageManager.PERMISSION_GRANTED);
+			}
+		}
+	}
 }

@@ -26,9 +26,11 @@ package com.serenegiant.usbcameratest2;
 import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.GregorianCalendar;
 import java.util.Locale;
 
+import android.Manifest;
 import android.graphics.SurfaceTexture;
 import android.hardware.usb.UsbDevice;
 import android.os.Bundle;
@@ -95,6 +97,13 @@ public final class MainActivity extends BaseActivity implements CameraDialog.Cam
 		mUVCCameraView.setSurfaceTextureListener(mSurfaceTextureListener);
 
 		mUSBMonitor = new USBMonitor(this, mOnDeviceConnectListener);
+
+		checkAndRequestPermissions(Arrays.asList(
+				Manifest.permission.CAMERA,
+				Manifest.permission.WRITE_EXTERNAL_STORAGE,
+				Manifest.permission.READ_EXTERNAL_STORAGE,
+				Manifest.permission.RECORD_AUDIO
+		));
 	}
 
 	@Override

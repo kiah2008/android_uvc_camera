@@ -23,6 +23,7 @@
 
 package com.serenegiant.usbcameratest;
 
+import android.Manifest;
 import android.graphics.SurfaceTexture;
 import android.hardware.usb.UsbDevice;
 import android.os.Bundle;
@@ -44,6 +45,7 @@ import com.serenegiant.usb.UVCCamera;
 import com.serenegiant.widget.SimpleUVCCameraTextureView;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 public final class MainActivity extends BaseActivity implements CameraDialog.CameraDialogParent {
     private final String TAG=MainActivity.class.getSimpleName();
@@ -68,6 +70,7 @@ public final class MainActivity extends BaseActivity implements CameraDialog.Cam
 
         mUSBMonitor = new USBMonitor(this, mOnDeviceConnectListener);
 
+        checkAndRequestPermissions(Arrays.asList(Manifest.permission.CAMERA));
     }
 
     @Override
