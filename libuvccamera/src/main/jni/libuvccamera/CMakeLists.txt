@@ -1,8 +1,9 @@
 cmake_minimum_required(VERSION 3.1)
 project(libuvccamera
   VERSION 0.0.6
-  LANGUAGES C
+  LANGUAGES CXX
 )
+
 
 # Xcode and Visual Studio do not using CMAKE_BUILD_TYPE cache variable
 # so we use Release build type only with single configuration generators.
@@ -24,7 +25,10 @@ option(ENABLE_UVC_DEBUGGING "Enable UVC debugging" OFF)
 
 set(libuvccamera_DESCRIPTION "A cross-platform library for USB video devices")
 
-set(CMAKE_C_FLAGS "-DANDROID_NDK -DLOG_NDEBUG -DACCESS_RAW_DESCRIPTORS -O3 -fstrict-aliasing ${CMAKE_C_FLAGS}")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DANDROID_NDK -DLOG_NDEBUG -DACCESS_RAW_DESCRIPTORS -O3 -fstrict-aliasing")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DANDROID_NDK -DLOG_NDEBUG -DACCESS_RAW_DESCRIPTORS -O3 -fstrict-aliasing")
+
+add_definitions("-Wall -std=c++14 -DANDROID_NDK -DLOG_NDEBUG -DACCESS_RAW_DESCRIPTORS")
 
 set(SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/_onload.cpp

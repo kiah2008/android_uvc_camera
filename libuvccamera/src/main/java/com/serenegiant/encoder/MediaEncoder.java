@@ -244,8 +244,8 @@ public abstract class MediaEncoder implements Runnable {
 		if (DEBUG) Log.d(TAG, "sending EOS to encoder");
         // signalEndOfInputStream is only avairable for video encoding with surface
         // and equivalent sending a empty buffer with BUFFER_FLAG_END_OF_STREAM flag.
-//		mMediaCodec.signalEndOfInputStream();	// API >= 18
-        encode((byte[])null, 0, getPTSUs());
+		mMediaCodec.signalEndOfInputStream();	// API >= 18
+//        encode((byte[])null, 0, getPTSUs());
 	}
 
     /**

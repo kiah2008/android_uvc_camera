@@ -364,15 +364,17 @@ public final class MainActivity extends BaseActivity implements CameraDialog.Cam
 		queueEvent(new Runnable() {
 			@Override
 			public void run() {
+				if (mEncoder != null) {
+					mEncoder.stopRecording();
+					mEncoder = null;
+				}
+
 				synchronized (mSync) {
 					if (mUVCCamera != null) {
 						mUVCCamera.stopCapture();
 					}
 				}
-				if (mEncoder != null) {
-					mEncoder.stopRecording();
-					mEncoder = null;
-				}
+
 			}
 		}, 0);
 	}
