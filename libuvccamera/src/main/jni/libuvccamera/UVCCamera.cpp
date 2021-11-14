@@ -21,13 +21,14 @@
  * All files in the folder are under this Apache License, Version 2.0.
  * Files in the jni/libjpeg, jni/libusb, jin/libuvc, jni/rapidjson folder may have a different license, see the respective files.
 */
+#include <stdlib.h>
 
 #define LOG_TAG "UVCCamera"
 #if 1	// デバッグ情報を出さない時1
 	#ifndef LOG_NDEBUG
 		#define	LOG_NDEBUG		// LOGV/LOGD/MARKを出力しない時
-		#endif
-	#undef USE_LOGALL			// 指定したLOGxだけを出力
+	#endif
+//	#undef USE_LOGALL			// 指定したLOGxだけを出力
 #else
 	#define USE_LOGALL
 	#undef LOG_NDEBUG
@@ -143,7 +144,10 @@ int UVCCamera::connect(int vid, int pid, int fd, int busnum, int devaddr, const 
 		mUsbFs = strdup(usbfs);
 		if (UNLIKELY(!mContext)) {
 			result = uvc_init2(&mContext, NULL, mUsbFs);
-//			libusb_set_debug(mContext->usb_ctx, LIBUSB_LOG_LEVEL_DEBUG);
+			if(getenv("UVC_ENABLE_DEBUG")!=NULL) {
+			    LOGD("enable usb debug");
+				libusb_set_debug(mContext->usb_ctx, LIBUSB_LOG_LEVEL_DEBUG);
+			}
 			if (UNLIKELY(result < 0)) {
 				LOGD("failed to init libuvc");
 				RETURN(result, int);

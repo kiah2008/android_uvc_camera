@@ -67,13 +67,6 @@ public class SurfaceEncoder extends Encoder {
 		mIsCapturing = true;
 		mIsEOS = false;
 
-		final MediaCodecInfo codecInfo = selectCodec(MIME_TYPE);
-		if (codecInfo == null) {
-			Log.e(TAG, "Unable to find an appropriate codec for " + MIME_TYPE);
-			return;
-		}
-		if (DEBUG) Log.i(TAG, "selected codec: " + codecInfo.getName());
-
 		mBufferInfo = new MediaCodec.BufferInfo();
 		final MediaFormat format = MediaFormat.createVideoFormat(MIME_TYPE, FRAME_WIDTH, FRAME_HEIGHT);
 
@@ -84,6 +77,13 @@ public class SurfaceEncoder extends Encoder {
 		format.setInteger(MediaFormat.KEY_FRAME_RATE, CAPTURE_FPS);
 		format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, IFRAME_INTERVAL);
 		if (DEBUG) Log.i(TAG, "format: " + format);
+
+		final MediaCodecInfo codecInfo = selectCodec(MIME_TYPE, format);
+		if (codecInfo == null) {
+			Log.e(TAG, "Unable to find an appropriate codec for " + MIME_TYPE);
+			return;
+		}
+		if (DEBUG) Log.i(TAG, "selected codec: " + codecInfo.getName());
 
 		// create a MediaCodec encoder with specific configuration
 		mMediaCodec = MediaCodec.createEncoderByType(MIME_TYPE);

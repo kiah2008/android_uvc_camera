@@ -396,7 +396,7 @@ LOOP:	while (mIsCapturing) {
      * return null if nothing is available
      * @param mimeType
      */
-    public static final MediaCodecInfo selectCodec(final String mimeType) {
+    public static final MediaCodecInfo selectCodec(final String mimeType, final MediaFormat format) {
     	MediaCodecInfo result = null;
 
     	// get avcodec list
@@ -410,10 +410,16 @@ LOOP:	for (int i = 0; i < numCodecs; i++) {
 
             // select encoder that MIME is equal to the specific type
             final String[] types = codecInfo.getSupportedTypes();
-            for (int j = 0; j < types.length; j++) {
+			MediaCodecInfo.CodecCapabilities capabilities;
+			int colorFormat;
+			for (int j = 0; j < types.length; j++) {
                 if (types[j].equalsIgnoreCase(mimeType)) {
-               		result = codecInfo;
-               		break LOOP;
+					capabilities = codecInfo.getCapabilitiesForType(mimeType);
+					if(capabilities.isFormatSupported(format)) {
+						result = codecInfo;
+						Log.d(TAG, "found codec "+codecInfo.getName());
+						break LOOP;
+					}
                 }
             }
         }

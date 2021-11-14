@@ -541,7 +541,7 @@ abstract class AbstractUVCCameraHandler extends Handler {
 		}
 
 		public void handleStartRecording() {
-			if (DEBUG) Log.v(TAG_THREAD, "handleStartRecording:");
+			if (DEBUG) Log.v(TAG_THREAD, "handleStartRecording: "+ mEncoderType);
 			try {
 				if ((mUVCCamera == null) || (mMuxer != null)) return;
 				final MediaMuxerWrapper muxer = new MediaMuxerWrapper(".mp4");	// if you record audio only, ".m4a" is also OK.

@@ -28,8 +28,8 @@ set(libuvccamera_DESCRIPTION "A cross-platform library for USB video devices")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DANDROID_NDK -DLOG_NDEBUG -DACCESS_RAW_DESCRIPTORS -O3 -fstrict-aliasing")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DANDROID_NDK -DLOG_NDEBUG -DACCESS_RAW_DESCRIPTORS -O3 -fstrict-aliasing")
 
-add_definitions("-Wall -std=c++14 -DANDROID_NDK -DLOG_NDEBUG -DACCESS_RAW_DESCRIPTORS")
-
+#add_definitions("-Wall -std=c++14 -DANDROID_NDK -DLOG_NDEBUG -DACCESS_RAW_DESCRIPTORS")
+add_definitions("-Wall -DDUMP_FRAME -std=c++14 -DANDROID_NDK -DUSE_LOGALL  -DACCESS_RAW_DESCRIPTORS")
 set(SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/_onload.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/utilbase.cpp
@@ -43,12 +43,12 @@ set(SOURCES
 
 add_library(uvccamera SHARED ${SOURCES})
 
-set_target_properties(uvccamera PROPERTIES
-  VERSION ${libuvccamera_VERSION}
-  SOVERSION ${libuvccamera_VERSION_MAJOR}
-  # Exported name of target within namespace LibUVC
-#  EXPORT_NAME uvccamera
-)
+#set_target_properties(uvccamera PROPERTIES
+#  VERSION ${libuvccamera_VERSION}
+#  SOVERSION ${libuvccamera_VERSION_MAJOR}
+#  # Exported name of target within namespace LibUVC
+##  EXPORT_NAME uvccamera
+#)
 
 
 LIST(APPEND ALL_INCLUDE
@@ -76,6 +76,8 @@ target_link_libraries(uvccamera
         jpeg
         jnigraphics
         log
+        dl
+        m
         android
 )
 install(

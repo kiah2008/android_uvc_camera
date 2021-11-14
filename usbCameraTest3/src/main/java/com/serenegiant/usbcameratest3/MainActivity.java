@@ -185,6 +185,10 @@ public final class MainActivity extends BaseActivity implements CameraDialog.Cam
 							mCaptureButton.setColorFilter(0);	// return to default color
 							mCameraHandler.stopRecording();
 						}
+					} else {
+						runOnUiThread(()->{
+							Toast.makeText(MainActivity.this, "fail to check permission", Toast.LENGTH_SHORT).show();
+						});
 					}
 				}
 				break;

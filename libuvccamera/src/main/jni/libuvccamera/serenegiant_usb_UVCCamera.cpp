@@ -35,6 +35,7 @@
 
 #include <jni.h>
 #include <android/native_window_jni.h>
+#include <stdlib.h>
 
 #include "libUVCCamera.h"
 #include "UVCCamera.h"
@@ -2012,11 +2013,17 @@ jint registerNativeMethods(JNIEnv* env, const char *class_name, JNINativeMethod 
 	return result;
 }
 
+static jint nativeSetDebug(JNIEnv *env, jobject thiz) {
+	LOGD("uvcc set debug");
+	return setenv("UVC_ENABLE_DEBUG", "1", true);
+}
+
 static JNINativeMethod methods[] = {
 	{ "nativeCreate",					"()J", (void *) nativeCreate },
 	{ "nativeDestroy",					"(J)V", (void *) nativeDestroy },
 	//
 	{ "nativeConnect",					"(JIIIIILjava/lang/String;)I", (void *) nativeConnect },
+	{"nativeSetDebug", "()I", (void*)nativeSetDebug},
 	{ "nativeRelease",					"(J)I", (void *) nativeRelease },
 
 	{ "nativeSetStatusCallback",		"(JLcom/serenegiant/usb/IStatusCallback;)I", (void *) nativeSetStatusCallback },

@@ -32,6 +32,7 @@ import android.view.Surface;
 
 import com.serenegiant.glutils.EGLBase;
 import com.serenegiant.glutils.RenderHandler;
+import com.serenegiant.uvccamera.BuildConfig;
 
 import java.io.IOException;
 
@@ -42,7 +43,7 @@ import java.io.IOException;
  * camera from MediaCodec encoder using Open GL|ES
  */
 public class MediaVideoEncoder extends MediaEncoder implements IVideoEncoder {
-	private static final boolean DEBUG = true;	// TODO set false on release
+	private static final boolean DEBUG = BuildConfig.BUILD_TYPE == "debug";	// TODO set false on release
 	private static final String TAG = "MediaVideoEncoder";
 
 	private static final String MIME_TYPE = "video/avc";
@@ -56,7 +57,7 @@ public class MediaVideoEncoder extends MediaEncoder implements IVideoEncoder {
 
 	public MediaVideoEncoder(final MediaMuxerWrapper muxer, final int width, final int height, final MediaEncoderListener listener) {
 		super(muxer, listener);
-		if (DEBUG) Log.i(TAG, "MediaVideoEncoder: ");
+		if (DEBUG) Log.d(TAG, "MediaVideoEncoder: ");
 		mRenderHandler = RenderHandler.createHandler(TAG);
 		mWidth = width;
 		mHeight = height;

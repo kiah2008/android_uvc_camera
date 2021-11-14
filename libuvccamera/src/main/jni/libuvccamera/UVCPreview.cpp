@@ -112,6 +112,11 @@ uvc_frame_t *UVCPreview::get_frame(size_t data_bytes) {
 	{
 		if (!mFramePool.isEmpty()) {
 			frame = mFramePool.last();
+			if (frame->data_bytes < data_bytes) {
+				LOGW("miss frame buffer size %zu<%zu", frame->data_bytes, data_bytes);
+				uvc_free_frame(frame);
+				frame = NULL;
+			}
 		}
 	}
 	pthread_mutex_unlock(&pool_mutex);
@@ -183,6 +188,7 @@ int UVCPreview::setPreviewSize(int width, int height, int min_fps, int max_fps, 
 		result = uvc_get_stream_ctrl_format_size(mDeviceHandle, &ctrl,
 			!requestMode ? UVC_FRAME_FORMAT_YUYV : UVC_FRAME_FORMAT_MJPEG,
 			requestWidth, requestHeight, max_fps);
+		LOGD("set preview format %s, mfps %d, ret %d", !requestMode ? "YUYV" : "MJPEG", max_fps, result);
 	}
 	
 	RETURN(result, int);
@@ -466,6 +472,8 @@ void *UVCPreview::preview_thread_func(void *vptr_args) {
 		result = preview->prepare_preview(&ctrl);
 		if (LIKELY(!result)) {
 			preview->do_preview(&ctrl);
+		} else {
+			LOGW("prepare preview failed.");
 		}
 	}
 	PRE_EXIT();
@@ -530,6 +538,7 @@ void UVCPreview::do_preview(uvc_stream_ctrl_t *ctrl) {
 				frame_mjpeg = waitPreviewFrame();
 				if (LIKELY(frame_mjpeg)) {
 					frame = get_frame(frame_mjpeg->width * frame_mjpeg->height * 2);
+					//TODO:@kai using mjpeg2rgbx instead
 					result = uvc_mjpeg2yuyv(frame_mjpeg, frame);   // MJPEG => yuyv
 					recycle_frame(frame_mjpeg);
 					if (LIKELY(!result)) {
@@ -541,7 +550,7 @@ void UVCPreview::do_preview(uvc_stream_ctrl_t *ctrl) {
 				}
 			}
 		} else {
-			// yuvyv mode
+			// yuyv mode
 			for ( ; LIKELY(isRunning()) ; ) {
 				frame = waitPreviewFrame();
 				if (LIKELY(frame)) {
@@ -799,6 +808,52 @@ void UVCPreview::do_capture_idle_loop(JNIEnv *env) {
 	EXIT();
 }
 
+void dump_frame(uvc_frame_t *frame, const char* prefix) {
+#define MAX_PATH 128
+    static char dump_path[MAX_PATH] = {0};
+    size_t dump_size = -1;
+    int bpp = 0;
+	FILE* dump_f;
+
+    if(frame == NULL) return;
+
+    switch (frame->frame_format) {
+        case UVC_FRAME_FORMAT_YUYV:
+            bpp=2;
+            break;
+        case UVC_FRAME_FORMAT_UYVY:
+            bpp=2;
+            break;
+        case UVC_FRAME_FORMAT_RGBX:
+            bpp=4;
+            break;
+        case UVC_FRAME_FORMAT_RGB:
+            bpp=3;
+            break;
+        default:
+            bpp = 0;
+    }
+    if(bpp==0) {
+        LOGE("not support format %d", frame->frame_format);
+        return;
+    }
+
+	dump_size = bpp * (frame->width >= frame->step ? frame->width : frame->step)
+			* frame->height;
+
+    timeval tv_;
+    gettimeofday(&tv_, nullptr);
+    time_t tt_ = tv_.tv_sec;
+    struct tm *tm_ = localtime(&tt_);
+    snprintf(dump_path, MAX_PATH,
+             "/sdcard/uvc_dump/%s_w%dx%d_t%02d%02d%02d_%03d.rgba",prefix==NULL?"":prefix,
+             frame->width, frame->height, tm_->tm_hour,
+             tm_->tm_min, tm_->tm_sec, (int)(tv_.tv_usec / 1000));
+    LOGD("dump path %s", timestamp);
+    dump_f = fopen(dump_path, "wb");
+    fwrite(frame->data, dump_size, 1, dump_f);
+    fclose(dump_f);
+}
 /**
  * write frame data to Surface for capturing
  */
@@ -821,7 +876,10 @@ void UVCPreview::do_capture_surface(JNIEnv *env) {
 					int b = uvc_any2rgbx(frame, converted);
 					if (!b) {
 						if (LIKELY(mCaptureWindow)) {
-							copyToSurface(converted, &mCaptureWindow);
+#ifdef DUMP_FRAME
+							dump_frame(converted, "capture");
+#endif
+                            copyToSurface(converted, &mCaptureWindow);
 						}
 					}
 				}

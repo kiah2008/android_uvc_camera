@@ -115,7 +115,7 @@ class UVCCamera {
 	uvc_device_handle_t *mDeviceHandle;
 	UVCStatusCallback *mStatusCallback;
 	UVCButtonCallback *mButtonCallback;
-	// プレビュー用
+	//预览实现
 	UVCPreview *mPreview;
 	uint64_t mCtrlSupports;
 	uint64_t mPUSupports;

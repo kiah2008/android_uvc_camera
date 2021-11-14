@@ -172,6 +172,7 @@ public class UVCCamera {
     protected int mMultiplierLimitMin, mMultiplierLimitMax, mMultiplierLimitDef;
     protected int mAnalogVideoStandardMin, mAnalogVideoStandardMax, mAnalogVideoStandardDef;
     protected int mAnalogVideoLockStateMin, mAnalogVideoLockStateMax, mAnalogVideoLockStateDef;
+
     // until here
     /**
      * the sonctructor of this class should be call within the thread that has a looper
@@ -180,6 +181,10 @@ public class UVCCamera {
     public UVCCamera() {
     	mNativePtr = nativeCreate();
     	mSupportedSize = null;
+    	if(DEBUG) {
+    		Log.d(TAG, "enable native debug");
+//    		nativeSetDebug();
+		}
 	}
 
     /**
@@ -1222,4 +1227,5 @@ public class UVCCamera {
 	private final native int nativeUpdatePrivacyLimit(final long id_camera);
     private static final native int nativeSetPrivacy(final long id_camera, final boolean privacy);
     private static final native int nativeGetPrivacy(final long id_camera);
+    private static final native int nativeSetDebug();
 }
