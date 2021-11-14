@@ -18,8 +18,10 @@ package com.serenegiant.utils;
  *  limitations under the License.
 */
 
+import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 import java.text.SimpleDateFormat;
 import java.util.GregorianCalendar;
@@ -35,6 +37,21 @@ import android.util.Log;
 
 public class FileUtils {
 	private static final String TAG = FileUtils.class.getSimpleName();
+	public static String ROOT_PATH = Environment.getExternalStorageDirectory().getAbsolutePath()+File.separator;
+
+	public static BufferedOutputStream createfile(String path){
+		File file = new File(path);
+		BufferedOutputStream outputStream = null;
+		if(file.exists()){
+			file.delete();
+		}
+		try {
+			outputStream = new BufferedOutputStream(new FileOutputStream(file));
+		} catch (Exception e){
+			e.printStackTrace();
+		}
+		return outputStream;
+	}
 
     public static String DIR_NAME = "UsbWebCamera";
 	private static final SimpleDateFormat mDateTimeFormat = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss", Locale.US);
