@@ -98,8 +98,7 @@ android {
 dependencies {
     implementation fileTree(dir: new File(buildDir, 'libs'), include: '*.jar')
 
-	implementation(name:'common-4.1.1', ext:'aar')
+//	implementation(name:'common-4.1.1', ext:'aar')
 	implementation "androidx.appcompat:appcompat:${prop_androidx_version}"
-//	implementation project(':3rd_libs')
-
+	implementation project(':libcommon-4.1.1')
 }

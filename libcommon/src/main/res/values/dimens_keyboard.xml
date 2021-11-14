@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<dimen name="keyboard_gap_horizontal">1dp</dimen>
+	<dimen name="keyboard_gap_vertical">1dp</dimen>
+	<dimen name="keyboard_key_width">33%p</dimen>
+	<dimen name="keyboard_key_height">8%p</dimen>
+	<dimen name="keyboard_key_preview_height">24dp</dimen>
+	<dimen name="keyboard_key_text_sz">18sp</dimen>
+	<dimen name="keyboard_label_sz">12sp</dimen>
+</resources>
