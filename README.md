@@ -166,6 +166,11 @@ Add new sample app `usbCameraTest8` to show how to set/get uvc control like brig
 Add new sample app on [OpenCVwithUVC](https://github.com/saki4510t/OpenCVwithUVC.git) repository.
 This shows the way to pass video images from UVC into `cv::Mat` (after optional applying video effect by OpenGL|ES) and execute image processing by `OpenCV`.
 
+### 2021/11/14
+Fix Common issue and support recording
+
+
+# Example
 ```
 1）USBCameraTest0
             显示如何使用SurfaceView来启动/停止预览。
@@ -203,4 +208,48 @@ This shows the way to pass video images from UVC into `cv::Mat` (after optional 
 
 9）usbCameraTest8
             这显示了如何设置/获取uvc控件。目前这只支持亮度和对比度。
+```
+
+# Code Flow
+```
+com.serenegiant.usb.UVCCamera
+UVCCamera#UVCCamera
+	instance JNI UVCCamera
+
+UVCCamera#open
+	nativeConnect(USBDevice)
+		UVCCamera::connect(int vid, int pid, int fd, int busnum, int devaddr, const char *usbfs)
+		uvc_init2
+		mPreview = new UVCPreview(mDeviceHandle);
+			previewFormat(WINDOW_FORMAT_RGBA_8888),
+			frameBytes(DEFAULT_PREVIEW_WIDTH * DEFAULT_PREVIEW_HEIGHT * 2),	// YUYV
+
+
+Preview:
+	setPreviewTexture
+		ANativeWindow_fromSurface(env, jSurface)
+		UVCCamera::setPreviewDisplay(ANativeWindow *preview_window)
+		ANativeWindow_setBuffersGeometry(mPreviewWindow,
+						frameWidth, frameHeight, previewFormat);//WINDOW_FORMAT_RGBA_8888
+		mPreviewWindow
+
+	startPreview
+		nativeStartPreview
+			result = pthread_create(&preview_thread, NULL, preview_thread_func, (void *)this);
+				preview_thread_func
+					UVCPreview::prepare_preview
+						uvc_get_stream_ctrl_format_size_fps(format_yuyv/format_mjpeg, width/height, fps)
+					UVCPreview::do_preview
+						uvc_start_streaming_bandwidth(uvc_preview_frame_callback)
+						pthread_create(&capture_thread, NULL, capture_thread_func, (void *)this);
+					if mpegj:
+						take frame from previewFrames//ObjectArray
+						draw_preview_one(frame, &mPreviewWindow, uvc_any2rgbx, 4)//mjpeg convert to rgba
+						addCaptureFrame(frame);//add to capture frame
+					else yuyv:
+						take frame from previewFrames//ObjectArray
+						draw_preview_one(frame, &mPreviewWindow, uvc_any2rgbx, 4);
+						addCaptureFrame(frame);
+
+
 ```
