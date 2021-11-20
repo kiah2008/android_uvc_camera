@@ -3,7 +3,7 @@ package com.serenegiant.view.animation;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,13 +19,9 @@ package com.serenegiant.view.animation;
 */
 
 import androidx.annotation.NonNull;
-
-import android.util.Log;
 import android.view.View;
 import android.view.animation.Animation;
 import android.view.animation.Transformation;
-
-import com.serenegiant.view.ViewUtils;
 
 /**
  * Viewのりサイズを行うAnimationクラス
@@ -33,14 +29,12 @@ import com.serenegiant.view.ViewUtils;
  */
 
 public class ResizeAnimation extends Animation {
-	private static final boolean DEBUG = false;	// set false on production
-	private static final String TAG = ResizeAnimation.class.getSimpleName();
-
 	@NonNull
 	private final View mTargetView;
 	private final int mStartWidth, mStartHeight;
 	private final int mDiffWidth, mDiffHeight;
-
+	
+	
 	public ResizeAnimation(@NonNull final View view,
 		final int startWidth, final int startHeight,
 		final int endWidth, final int endHeight) {
@@ -50,9 +44,6 @@ public class ResizeAnimation extends Animation {
 		mStartHeight = startHeight;
 		mDiffWidth = endWidth - startWidth;
 		mDiffHeight = endHeight - startHeight;
-		if (DEBUG) Log.v(TAG, String.format("コンストラクタ:(%dx%d)→(%dx%d)",
-			startWidth, startHeight, endWidth, endHeight));
-		ViewUtils.requestResize(mTargetView, startWidth, startHeight);
 	}
 	
 	@Override
@@ -61,9 +52,12 @@ public class ResizeAnimation extends Animation {
 
 		super.applyTransformation(interpolatedTime, t);	// this is empty method now
 		
-		ViewUtils.requestResize(mTargetView,
-			(int)(mStartWidth + mDiffWidth * interpolatedTime),
-			(int)(mStartHeight + mDiffHeight * interpolatedTime));
+		final int newWidth = (int)(mStartWidth + mDiffWidth * interpolatedTime);
+		final int newHeight = (int)(mStartHeight + mDiffHeight * interpolatedTime);
+		
+		mTargetView.getLayoutParams().width = newWidth;
+		mTargetView.getLayoutParams().height = newHeight;
+		mTargetView.requestLayout();
 	}
 	
 	@Override

@@ -3,7 +3,7 @@ package com.serenegiant.utils;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,10 +19,6 @@ package com.serenegiant.utils;
 */
 
 public class GPS {
-	private GPS() {
-		// インスタンス化をエラーにするためにデフォルトコンストラクタをprivateに
-	}
-
 	public static class Datum {
 		public final double a;	// 長半径(赤道半径)[m]
 		public final double b;	// 短半径(極半径)[m]

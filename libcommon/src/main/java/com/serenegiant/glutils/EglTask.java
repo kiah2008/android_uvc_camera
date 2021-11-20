@@ -3,7 +3,7 @@ package com.serenegiant.glutils;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,155 +18,105 @@ package com.serenegiant.glutils;
  *  limitations under the License.
 */
 
-import androidx.annotation.CallSuper;
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.annotation.WorkerThread;
 
 import com.serenegiant.utils.MessageTask;
 
-/**
- * Looper/Handler経由での実装だと少なくともAPI22未満では
- * Looperによる同期バリアの影響を受ける(==vsync同期してしまうので
- * 60fpsの場合最大で16ミリ秒遅延する)のでそれを避けるために
- * Looper/Handlerを使わずに簡易的にメッセージ処理を行うための
- * ヘルパークラスMessageTaskへEGL/GLコンテキスト関係の
- * 処理を追加したヘルパークラス
- * EglTaskまたはその継承クラスをTreadへ引き渡して実行する
- */
 public abstract class EglTask extends MessageTask {
 //	private static final boolean DEBUG = false;
 //	private static final String TAG = "EglTask";
 
-	private final GLContext mGLContext;
+	public static final int EGL_FLAG_DEPTH_BUFFER = 0x01;
+	public static final int EGL_FLAG_RECORDABLE = 0x02;
+	public static final int EGL_FLAG_STENCIL_1BIT = 0x04;
+//	public static final int EGL_FLAG_STENCIL_2BIT = 0x08;
+//	public static final int EGL_FLAG_STENCIL_4BIT = 0x10;
+	public static final int EGL_FLAG_STENCIL_8BIT = 0x20;
 
-	/**
-	 * コンストラクタ
-	 * @param sharedContext
-	 * @param flags
-	 */
-	@Deprecated
-	public EglTask(@Nullable final EGLBase.IContext sharedContext, final int flags) {
-		this(GLUtils.getSupportedGLVersion(), sharedContext, flags);
+	private EGLBase mEgl = null;
+	private EGLBase.IEglSurface mEglHolder;
+
+	public EglTask(final EGLBase.IContext sharedContext, final int flags) {
+//		if (DEBUG) Log.i(TAG, "shared_context=" + shared_context);
+		init(flags, 3, sharedContext);
 	}
 
-	/**
-	 * コンストラクタ
-	 * @param maxClientVersion
-	 * @param sharedContext
-	 * @param flags
-	 */
 	public EglTask(final int maxClientVersion,
-		@Nullable final EGLBase.IContext sharedContext, final int flags) {
-
-		this(maxClientVersion, sharedContext, flags, 1, 1);
-	}
-
-	/**
-	 * コンストラクタ
-	 * @param maxClientVersion
-	 * @param sharedContext
-	 * @param flags
-	 * @param masterWidth
-	 * @param masterHeight
-	 */
-	public EglTask(final int maxClientVersion,
-		@Nullable final EGLBase.IContext sharedContext, final int flags,
-		final int masterWidth, final int masterHeight) {
+		final EGLBase.IContext sharedContext, final int flags) {
 
 //		if (DEBUG) Log.i(TAG, "shared_context=" + shared_context);
-		mGLContext = new GLContext(maxClientVersion,
-			sharedContext, flags,
-			masterWidth, masterHeight);
-		init(0, 0, null);
+		init(flags, maxClientVersion, sharedContext);
 	}
 
 	/**
-	 * MessageTaskの実装
 	 * @param flags
 	 * @param maxClientVersion
 	 * @param sharedContext
 	 */
-	@WorkerThread
-	@CallSuper
 	@Override
 	protected void onInit(final int flags,
 		final int maxClientVersion, final Object sharedContext) {
 
-		mGLContext.initialize();
+		if ((sharedContext == null)
+			|| (sharedContext instanceof EGLBase.IContext)) {
+
+			final int stencilBits
+				= (flags & EGL_FLAG_STENCIL_1BIT) == EGL_FLAG_STENCIL_1BIT ? 1
+					: ((flags & EGL_FLAG_STENCIL_8BIT) == EGL_FLAG_STENCIL_8BIT ? 8 : 0);
+			mEgl = EGLBase.createFrom(maxClientVersion, (EGLBase.IContext)sharedContext,
+				(flags & EGL_FLAG_DEPTH_BUFFER) == EGL_FLAG_DEPTH_BUFFER,
+				stencilBits,
+				(flags & EGL_FLAG_RECORDABLE) == EGL_FLAG_RECORDABLE);
+		}
+		if (mEgl == null) {
+			callOnError(new RuntimeException("failed to create EglCore"));
+			releaseSelf();
+		} else {
+			mEglHolder = mEgl.createOffscreen(1, 1);
+			mEglHolder.makeCurrent();
+		}
 	}
 
-	/**
-	 * MessageTaskの実装
-	 * @return
-	 * @throws InterruptedException
-	 */
 	@Override
 	protected Request takeRequest() throws InterruptedException {
 		final Request result = super.takeRequest();
-		mGLContext.makeDefault();
+		mEglHolder.makeCurrent();
 		return result;
 	}
 
-	/**
-	 * MessageTaskの実装
-	 */
-	@WorkerThread
 	@Override
 	protected void onBeforeStop() {
-		mGLContext.makeDefault();
+		mEglHolder.makeCurrent();
 	}
 
-	/**
-	 * MessageTaskの実装
-	 */
-	@WorkerThread
 	@Override
 	protected void onRelease() {
-		mGLContext.release();
+		mEglHolder.release();
+		mEgl.release();
 	}
 
-//--------------------------------------------------------------------------------
-	public GLContext getGLContext() {
-		return mGLContext;
+	protected EGLBase getEgl() {
+		return mEgl;
 	}
 
-	public EGLBase getEgl() {
-		return mGLContext.getEgl();
+	protected EGLBase.IContext getEGLContext() {
+		return mEgl.getContext();
 	}
 
-	public EGLBase.IConfig getConfig() {
-		return mGLContext.getConfig();
+	protected EGLBase.IConfig getConfig() {
+		return mEgl.getConfig();
 	}
 
 	@Nullable
-	public EGLBase.IContext getContext() {
-		return mGLContext.getContext();
+	protected EGLBase.IContext getContext() {
+		return mEgl != null ? mEgl.getContext() : null;
 	}
 
-	public void makeCurrent() {
-		mGLContext.makeDefault();
+	protected void makeCurrent() {
+		mEglHolder.makeCurrent();
 	}
 
-	public boolean isGLES3() {
-		return mGLContext.isGLES3();
-	}
-
-	/**
-	 * 指定した文字列を含んでいるかどうかをチェック
-	 * GLコンテキストが存在するスレッド上で実行すること
-	 * @param extension
-	 * @return
-	 */
-	public boolean hasExtension(@NonNull final String extension) {
-		return mGLContext.hasExtension(extension);
-	}
-
-	/**
-	 * GLES3でGL_OES_EGL_image_external_essl3に対応しているかどうか
-	 * @return
-	 */
-	public boolean isOES3() {
-		return mGLContext.isOES3();
+	protected boolean isGLES3() {
+		return (mEgl != null) && (mEgl.getGlVersion() > 2);
 	}
 }

@@ -4,7 +4,7 @@ package com.serenegiant.utils;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,10 +19,6 @@ package com.serenegiant.utils;
  *  limitations under the License.
 */
 public class Endian {
-	private Endian() {
-		// インスタンス化をエラーにするためにデフォルトコンストラクタをprivateに
-	}
-
 	public static boolean be2boolean(final byte[] bytes, final int offset) {
 		return bytes[offset] != 0;
 	}

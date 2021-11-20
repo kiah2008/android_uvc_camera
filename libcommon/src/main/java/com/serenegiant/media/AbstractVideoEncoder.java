@@ -3,7 +3,7 @@ package com.serenegiant.media;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,13 +23,12 @@ import java.nio.ByteOrder;
 
 import android.annotation.TargetApi;
 import android.media.MediaCodec;
+import android.media.MediaCodecInfo;
 import android.media.MediaFormat;
 import android.os.Build;
 import android.os.Bundle;
 
-import com.serenegiant.system.BuildCheck;
-
-import androidx.annotation.NonNull;
+import com.serenegiant.utils.BuildCheck;
 
 @TargetApi(Build.VERSION_CODES.JELLY_BEAN)
 public abstract class AbstractVideoEncoder extends AbstractEncoder
@@ -38,15 +37,12 @@ public abstract class AbstractVideoEncoder extends AbstractEncoder
 //	private static final boolean DEBUG = false;	// FIXME 実働時にはfalseにすること
 //	private static final String TAG = "AbstractVideoEncoder";
 
-	protected int mWidth, mHeight;
+   protected int mWidth, mHeight;
     protected int mBitRate = -1;
 	protected int mFramerate = -1;
     protected int mIFrameIntervals = -1;
 
-    public AbstractVideoEncoder(final String mime,
-    	@NonNull final IRecorder recorder,
-    	@NonNull final EncoderListener listener) {
-
+    public AbstractVideoEncoder(final String mime, final IRecorder recorder, final EncoderListener listener) {
 		super(mime, recorder, listener);
     }
 
@@ -62,7 +58,7 @@ public abstract class AbstractVideoEncoder extends AbstractEncoder
 //    	Log.d(TAG, String.format("setVideoSize(%d,%d)", width, height));
     	mWidth = width;
     	mHeight = height;
-		mBitRate = getConfig().getBitrate(width, height);
+		mBitRate = VideoConfig.getBitrate(width, height);
     }
 
 	public void setVideoConfig(final int bitRate, final int frameRate, final int iFrameIntervals) {

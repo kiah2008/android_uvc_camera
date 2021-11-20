@@ -2,7 +2,7 @@
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,35 +20,36 @@
 package com.serenegiant.service;
 
 import android.annotation.SuppressLint;
+import android.annotation.TargetApi;
 import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationChannelGroup;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.app.Service;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.graphics.BitmapFactory;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import androidx.annotation.DrawableRes;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.lifecycle.LifecycleService;
+import androidx.core.app.NotificationCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
-
 import android.text.TextUtils;
 import android.util.Log;
 
 import com.serenegiant.common.R;
-import com.serenegiant.notification.NotificationFactory;
-import com.serenegiant.system.BuildCheck;
-import com.serenegiant.system.ContextUtils;
+import com.serenegiant.utils.BuildCheck;
 import com.serenegiant.utils.HandlerThreadHandler;
 
-/**
- * サービスに各種ユーティリティーメソッドを追加
- * FIXME NotificationCompat.Builderを直接使う代わりにNotificationBuilderを使うように変更する
- */
-public abstract class BaseService extends LifecycleService {
+import java.util.List;
+
+public abstract class BaseService extends Service {
 	private static final boolean DEBUG = false;	// FIXME set false on production
 	private static final String TAG = BaseService.class.getSimpleName();
 
@@ -134,7 +135,6 @@ public abstract class BaseService extends LifecycleService {
 	 * @param intent
 	 */
 	protected void sendLocalBroadcast(final Intent intent) {
-		if (DEBUG) Log.v(TAG, "sendLocalBroadcast:" + intent);
 		synchronized (mSync) {
 			if (mLocalBroadcastManager != null) {
 				mLocalBroadcastManager.sendBroadcast(intent);
@@ -143,10 +143,234 @@ public abstract class BaseService extends LifecycleService {
 	}
 
 //================================================================================
+	
+	/**
+	 * Notification生成用のファクトリークラス
+	 * XXX 単独クラスにするかも
+	 */
+	public static abstract class NotificationFactory {
+	
+		protected final String channelId;
+		protected final String channelTitle;
+		protected final int importance;
+		protected final String groupId;
+		protected final String groupName;
+		@DrawableRes
+		protected final int smallIconId;
+		@DrawableRes
+		protected final int largeIconId;
+		
+		@SuppressLint("InlinedApi")
+		public NotificationFactory(
+			@NonNull final String channelId, @Nullable final String channelTitle,
+			@DrawableRes final int smallIconId) {
+	
+			this(channelId, channelId,
+				BuildCheck.isAndroid7() ? NotificationManager.IMPORTANCE_NONE : 0,
+				null, null, smallIconId, R.drawable.ic_notification);
+		}
+
+		@SuppressLint("InlinedApi")
+		public NotificationFactory(
+			@NonNull final String channelId, @Nullable final String channelTitle,
+			@DrawableRes final int smallIconId, @DrawableRes final int largeIconId) {
+
+			this(channelId, channelId,
+				BuildCheck.isAndroid7() ? NotificationManager.IMPORTANCE_NONE : 0,
+				null, null, smallIconId, largeIconId);
+		}
+
+		public NotificationFactory(
+			@NonNull final String channelId,
+			@Nullable final String channelTitle,
+			final int importance,
+			@Nullable final String groupId, @Nullable final String groupName,
+			@DrawableRes final int smallIconId, @DrawableRes final int largeIconId) {
+			
+			this.channelId = channelId;
+			this.channelTitle = TextUtils.isEmpty(channelTitle) ? channelId : channelTitle;
+			this.importance = importance;
+			this.groupId = groupId;
+			this.groupName = TextUtils.isEmpty(groupName) ? groupId : groupName;
+			this.smallIconId = smallIconId;
+			this.largeIconId = largeIconId;
+		}
+		
+		/**
+		 * Notification生成用のファクトリーメソッド
+		 * @param context
+		 * @param title
+		 * @param content
+		 * @return
+		 */
+		@SuppressLint("NewApi")
+		protected Notification createNotification(final Context context,
+			@NonNull final CharSequence title, @NonNull final CharSequence content) {
+
+			if (BuildCheck.isOreo()) {
+				createNotificationChannel(context);
+			}
+			
+			final NotificationCompat.Builder builder
+				= createNotificationBuilder(context, title, content);
+			
+			return builder.build();
+		}
+		
+		/**
+		 * Android 8以降用にNotificationChannelを生成する処理
+		 * NotificationManager#getNotificationChannelがnullを
+		 * 返したときのみ新規に作成する
+		 * #createNotificationrから呼ばれる
+		 * showNotification
+		 * 	-> createNotificationBuilder
+		 * 		-> (createNotificationChannel
+		 * 			-> (createNotificationChannelGroup)
+		 * 			-> setupNotificationChannel)
+		 * 	-> createNotification
+		 * 	-> startForeground -> NotificationManager#notify
+		 * @param context
+		 * @return
+		 */
+		@TargetApi(Build.VERSION_CODES.O)
+		protected void createNotificationChannel(
+			@NonNull final Context context) {
+	
+			final NotificationManager manager
+				= (NotificationManager)context.getSystemService(Context.NOTIFICATION_SERVICE);
+			if (manager.getNotificationChannel(channelId) == null) {
+				final NotificationChannel channel
+					= new NotificationChannel(channelId, channelTitle, importance);
+				if (!TextUtils.isEmpty(groupId)) {
+					createNotificationChannelGroup(context, groupId, groupName);
+					channel.setGroup(groupId);
+				}
+				channel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
+				manager.createNotificationChannel(setupNotificationChannel(channel));
+			}
+		}
+		
+		/**
+		 * Android 8以降用にNotificationChannelを生成する処理
+		 * NotificationManager#getNotificationChannelがnullを
+		 * 返したときのみ新規に作成する
+		 * NotificationManager#createNotificationChannelが呼ばれる直前に
+		 * #createNotificationChannelrから呼ばれる
+		 * @param channel
+		 * @return
+		 */
+		@NonNull
+		protected NotificationChannel setupNotificationChannel(
+			@NonNull final NotificationChannel channel) {
+			
+			return channel;
+		}
+		
+		/**
+		 * Android 8以降用にNotificationChannelGroupを生成する処理
+		 * NotificationManager#getNotificationChannelGroupsに同じグループidの
+		 * ものが存在しない時のみ新規に作成する
+		 * #createNotificationBuilderから呼ばれる
+		 * showNotification
+		 * 	-> createNotificationBuilder
+		 * 		-> (createNotificationChannel
+		 * 			-> (createNotificationChannelGroup)
+		 * 			-> setupNotificationChannel)
+		 * 	-> createNotification
+		 * 	-> startForeground -> NotificationManager#notify
+		 * @param groupId
+		 * @param groupName
+		 * @return
+		 */
+		@TargetApi(Build.VERSION_CODES.O)
+		protected void createNotificationChannelGroup(
+			@NonNull final Context context,
+			@Nullable final String groupId, @Nullable final String groupName) {
+			
+			if (!TextUtils.isEmpty(groupId)) {
+				final NotificationManager manager
+					= (NotificationManager)context.getSystemService(Context.NOTIFICATION_SERVICE);
+				final List<NotificationChannelGroup> groups
+					= manager.getNotificationChannelGroups();
+	
+				NotificationChannelGroup found = null;
+				for (final NotificationChannelGroup group: groups) {
+					if (groupId.equals(group.getId())) {
+						found = group;
+						break;
+					}
+				}
+				if (found == null) {
+					found = new NotificationChannelGroup(groupId,
+						TextUtils.isEmpty(groupName) ? groupId : groupName);
+					manager.createNotificationChannelGroup(
+						setupNotificationChannelGroup(found));
+				}
+			}
+		}
+		
+		/**
+		 * Android 8以降用にNotificationChannelGroupを生成する処理
+		 * NotificationManager#getNotificationChannelGroupsに同じグループidの
+		 * ものが存在しない時のみ新規に作成する
+		 * NotificationManager#createNotificationChannelGroupが呼ばれる直前に
+		 * #createNotificationChannelGroupから呼ばれる
+		 * @param group
+		 * @return
+		 */
+		@NonNull
+		protected NotificationChannelGroup setupNotificationChannelGroup(
+			@NonNull final NotificationChannelGroup group) {
+			
+			return group;
+		}
+
+		@SuppressLint("InlinedApi")
+		protected NotificationCompat.Builder createNotificationBuilder(
+			@NonNull final Context context,
+			@NonNull final CharSequence title, @NonNull final CharSequence content) {
+	
+			final NotificationCompat.Builder builder
+				= new NotificationCompat.Builder(context, channelId)
+				.setContentTitle(title)
+				.setContentText(content)
+				.setSmallIcon(smallIconId)  // the status icon
+				.setStyle(new NotificationCompat.BigTextStyle()
+					.setBigContentTitle(title)
+					.bigText(content)
+					.setSummaryText(content));
+			final PendingIntent contentIntent = createContentIntent();
+			if (contentIntent != null) {
+				builder.setContentIntent(contentIntent);
+			}
+			final PendingIntent deleteIntent = createDeleteIntent();
+			if (deleteIntent != null) {
+				builder.setDeleteIntent(deleteIntent);
+			}
+			if (!TextUtils.isEmpty(groupId)) {
+				builder.setGroup(groupId);
+				// XXX 最初だけbuilder.setGroupSummaryが必要かも?
+			}
+			if (largeIconId != 0) {
+				builder.setLargeIcon(
+					BitmapFactory.decodeResource(context.getResources(), largeIconId));
+			}
+			return builder;
+		}
+		
+		protected boolean isForegroundService() {
+			return true;
+		}
+		
+		protected abstract PendingIntent createContentIntent();
+		protected PendingIntent createDeleteIntent() {
+			return null;
+		}
+	}
 
 	/**
 	 * 通知領域に指定したメッセージを表示する。フォアグラウンドサービスとして動作させる。
-	 * @param smallIconId	API21未満ではVectorDrawableを指定してはだめ
+	 * @param smallIconId
 	 * @param title
 	 * @param content
 	 * @param intent
@@ -165,7 +389,7 @@ public abstract class BaseService extends LifecycleService {
 
 	/**
 	 * 通知領域に指定したメッセージを表示する。
-	 * @param smallIconId	API21未満ではVectorDrawableを指定してはだめ
+	 * @param smallIconId
 	 * @param title
 	 * @param content
 	 * @param isForegroundService フォアグラウンドサービスとして動作させるかどうか
@@ -187,7 +411,7 @@ public abstract class BaseService extends LifecycleService {
 	/**
 	 * 通知領域に指定したメッセージを表示する。フォアグラウンドサービスとして動作させる。
 	 * @param notificationId
-	 * @param smallIconId	API21未満ではVectorDrawableを指定してはだめ
+	 * @param smallIconId
 	 * @param title
 	 * @param content
 	 * @param intent
@@ -211,7 +435,7 @@ public abstract class BaseService extends LifecycleService {
 	 * @param notificationId
 	 * @param groupId
 	 * @param groupName
-	 * @param smallIconId	API21未満ではVectorDrawableを指定してはだめ
+	 * @param smallIconId
 	 * @param title
 	 * @param content
 	 * @param intent
@@ -237,7 +461,7 @@ public abstract class BaseService extends LifecycleService {
 	 * @param channelId
 	 * @param groupId
 	 * @param groupName
-	 * @param smallIconId	API21未満ではVectorDrawableを指定してはだめ
+	 * @param smallIconId
 	 * @param largeIconId
 	 * @param title
 	 * @param content
@@ -254,20 +478,18 @@ public abstract class BaseService extends LifecycleService {
 		final PendingIntent intent) {
 
 		showNotification(notificationId, title, content,
-			new NotificationFactory(this, channelId, channelId, 0,
+			new NotificationFactory(channelId, channelId, 0,
 				groupId, groupName, smallIconId, largeIconId) {
 
 				@Override
-				public boolean isForegroundService() {
-					if (DEBUG) Log.v(TAG, "showNotification:isForegroundService=" + isForegroundService);
-					return isForegroundService;
-				}
-
-				@Nullable
-				@Override
-				protected PendingIntent createContentIntent() {
-					return intent;
-				}
+					protected boolean isForegroundService() {
+						return isForegroundService;
+					}
+					
+					@Override
+					protected PendingIntent createContentIntent() {
+						return intent;
+					}
 			}
 		);
 	}
@@ -283,14 +505,12 @@ public abstract class BaseService extends LifecycleService {
 		@NonNull final CharSequence title, @NonNull final CharSequence content,
 		@NonNull final NotificationFactory factory) {
 	
-		if (DEBUG) Log.v(TAG, "showNotification:");
 		final NotificationManager manager
-			= ContextUtils.requireSystemService(this, NotificationManager.class);
-		final Notification notification = factory.createNotification(content, title);
+			= (NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);
+		final Notification notification = factory.createNotification(this, content, title);
 		if (factory.isForegroundService()) {
 			startForeground(notificationId, notification);
 		}
-		if (DEBUG) Log.v(TAG, "showNotification:notify");
 		manager.notify(notificationId, notification);
 	}
 
@@ -306,12 +526,6 @@ public abstract class BaseService extends LifecycleService {
 	
 	/**
 	 * 通知領域を開放する。フォアグラウンドサービスとしての動作を終了する
-	 * @param notificationId
-	 * @param channelId
-	 * @param smallIconId	API21未満ではVectorDrawableを指定してはだめ
-	 * @param largeIconId
-	 * @param title
-	 * @param content
 	 */
 	@SuppressLint("NewApi")
 	protected void releaseNotification(final int notificationId,
@@ -331,7 +545,6 @@ public abstract class BaseService extends LifecycleService {
 	protected void releaseNotification(final int notificationId,
 		@NonNull final String channelId) {
 
-		if (DEBUG) Log.v(TAG, "releaseNotification:");
 		stopForeground(true);
 		cancelNotification(notificationId, channelId);
 	}
@@ -346,9 +559,8 @@ public abstract class BaseService extends LifecycleService {
 	protected void cancelNotification(final int notificationId,
 		@Nullable final String channelId) {
 
-		if (DEBUG) Log.v(TAG, "cancelNotification:");
 		final NotificationManager manager
-			= ContextUtils.requireSystemService(this, NotificationManager.class);
+			= (NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);
 		manager.cancel(notificationId);
 		releaseNotificationChannel(channelId);
 	}
@@ -371,10 +583,9 @@ public abstract class BaseService extends LifecycleService {
 	 */
 	@SuppressLint("NewApi")
 	protected void releaseNotificationChannel(@Nullable final String channelId) {
-		if (DEBUG) Log.v(TAG, "releaseNotificationChannel:");
 		if (!TextUtils.isEmpty(channelId) && BuildCheck.isOreo()) {
 			final NotificationManager manager
-				= ContextUtils.requireSystemService(this, NotificationManager.class);
+				= (NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);
 			try {
 				manager.deleteNotificationChannel(channelId);
 			} catch (final Exception e) {
@@ -389,9 +600,10 @@ public abstract class BaseService extends LifecycleService {
 	 */
 	@SuppressLint("NewApi")
 	protected void releaseNotificationGroup(@NonNull final String groupId) {
+
 		if (!TextUtils.isEmpty(groupId) && BuildCheck.isOreo()) {
 			final NotificationManager manager
-				= ContextUtils.requireSystemService(this, NotificationManager.class);
+				= (NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);
 			try {
 				manager.deleteNotificationChannelGroup(groupId);
 			} catch (final Exception e) {
@@ -401,9 +613,7 @@ public abstract class BaseService extends LifecycleService {
 	}
 
 	/**
-	 * サービスノティフィケーションを選択した時に実行されるPendingIntentの生成
-	 * 普通はMainActivityを起動させる。
-	 * デフォルトはnullを返すだけでノティフィケーションを選択しても何も実行されない。
+	 * 通知領域からアクティビティを起動するためのインテントを生成する
 	 * @return
 	 */
 	protected abstract PendingIntent contextIntent();

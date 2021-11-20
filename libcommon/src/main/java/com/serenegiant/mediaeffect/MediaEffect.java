@@ -3,7 +3,7 @@ package com.serenegiant.mediaeffect;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ import android.media.effect.EffectFactory;
 import androidx.annotation.NonNull;
 import android.text.TextUtils;
 
-import com.serenegiant.glutils.GLSurface;
+import com.serenegiant.glutils.TextureOffscreen;
 
 public class MediaEffect implements IEffect {
 	protected final EffectContext mEffectContext;
@@ -56,12 +56,12 @@ public class MediaEffect implements IEffect {
 
 	@Override
 	public void apply(@NonNull final int [] src_tex_ids,
-		@NonNull final GLSurface output) {
+		@NonNull final TextureOffscreen output) {
 
 		if (mEnabled && (mEffect != null)) {
 			mEffect.apply(src_tex_ids[0],
 				output.getWidth(), output.getHeight(),
-				output.getTexId());
+				output.getTexture());
 		}
 	}
 

@@ -2,7 +2,7 @@
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,19 +24,15 @@ import android.graphics.SurfaceTexture;
 import android.opengl.GLES20;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.annotation.WorkerThread;
-
 import android.util.Log;
 import android.util.SparseArray;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 
-import com.serenegiant.glutils.es2.GLHelper;
-
 /**
- * MediaCodecのデコーダーでデコードした動画やカメラからの映像の代わりに、
- * 静止画をSurfaceへ出力するためのクラス
- * FIXME GLES30対応を実装する
+ * MediaCodecのデコーダーでデコードした動画や
+ * カメラからの映像の代わりに静止画をSurfaceへ
+ * 出力するためのクラス
  */
 public class StaticTextureSource {
 	private static final boolean DEBUG = false;	// FIXME 実働時はfalseにすること
@@ -208,18 +204,19 @@ public class StaticTextureSource {
 	private static final int REQUEST_SET_BITMAP = 7;
 
 	private static class RendererTask extends EglTask {
-		private final SparseArray<IRendererTarget> mTargets
-			= new SparseArray<>();
+		private final Object mClientSync = new Object();
+		private final SparseArray<RendererSurfaceRec> mClients
+			= new SparseArray<RendererSurfaceRec>();
 		private final StaticTextureSource mParent;
 		private final long mIntervalsNs;
 		private GLDrawer2D mDrawer;
 		private int mVideoWidth, mVideoHeight;
-		private GLSurface mImageSource;
+		private TextureOffscreen mImageSource;
 
 		public RendererTask(final StaticTextureSource parent,
 			final int width, final int height, final float fps) {
 
-			super(GLUtils.getSupportedGLVersion(), null, 0);
+			super(3, null, 0);
 			mParent = parent;
 			mVideoWidth = width;
 			mVideoHeight = height;
@@ -229,11 +226,10 @@ public class StaticTextureSource {
 		/**
 		 * ワーカースレッド開始時の処理(ここはワーカースレッド上)
 		 */
-		@WorkerThread
 		@Override
 		protected void onStart() {
 			if (DEBUG) Log.v(TAG, "onStart:");
-			mDrawer = GLDrawer2D.create(false, false);		// GL_TEXTURE_EXTERNAL_OESを使わない
+			mDrawer = new GLDrawer2D(false);		// GL_TEXTURE_EXTERNAL_OESを使わない
 			synchronized (mParent.mSync) {
 				mParent.isRunning = true;
 				mParent.mSync.notifyAll();
@@ -245,7 +241,6 @@ public class StaticTextureSource {
 		/**
 		 * ワーカースレッド終了時の処理(ここはまだワーカースレッド上)
 		 */
-		@WorkerThread
 		@Override
 		protected void onStop() {
 			if (DEBUG) Log.v(TAG, "onStop");
@@ -272,7 +267,6 @@ public class StaticTextureSource {
 			return false;
 		}
 
-		@WorkerThread
 		@Override
 		protected Object processRequest(final int request,
 			final int arg1, final int arg2, final Object obj) {
@@ -310,23 +304,26 @@ public class StaticTextureSource {
 		 */
 		public void addSurface(final int id, final Object surface, final int maxFps) {
 			checkFinished();
-			if (!GLUtils.isSupportedSurface(surface)) {
+			if (!((surface instanceof SurfaceTexture)
+				|| (surface instanceof Surface)
+					|| (surface instanceof SurfaceHolder))) {
+
 				throw new IllegalArgumentException(
 					"Surface should be one of Surface, SurfaceTexture or SurfaceHolder");
 			}
-			synchronized (mTargets) {
-				if (mTargets.get(id) == null) {
+			synchronized (mClientSync) {
+				if (mClients.get(id) == null) {
 					for ( ; ; ) {
 						if (offer(REQUEST_ADD_SURFACE, id, maxFps, surface)) {
 							try {
-								mTargets.wait();
+								mClientSync.wait();
 							} catch (final InterruptedException e) {
 								// ignore
 							}
 							break;
 						} else {
 							try {
-								mTargets.wait(10);
+								mClientSync.wait(10);
 							} catch (InterruptedException e) {
 								break;
 							}
@@ -341,19 +338,19 @@ public class StaticTextureSource {
 		 * @param id
 		 */
 		public void removeSurface(final int id) {
-			synchronized (mTargets) {
-				if (mTargets.get(id) != null) {
+			synchronized (mClientSync) {
+				if (mClients.get(id) != null) {
 					for ( ; ; ) {
 						if (offer(REQUEST_REMOVE_SURFACE, id)) {
 							try {
-								mTargets.wait();
+								mClientSync.wait();
 							} catch (final InterruptedException e) {
 								// ignore
 							}
 							break;
 						} else {
 							try {
-								mTargets.wait(10);
+								mClientSync.wait(10);
 							} catch (InterruptedException e) {
 								break;
 							}
@@ -376,8 +373,8 @@ public class StaticTextureSource {
 		 * @return
 		 */
 		public int getCount() {
-			synchronized (mTargets) {
-				return mTargets.size();
+			synchronized (mClientSync) {
+				return mClients.size();
 			}
 		}
 
@@ -393,25 +390,25 @@ public class StaticTextureSource {
 		/**
 		 * 実際の描画処理
 		 */
-		@WorkerThread
 		private void handleDraw() {
 //			if (DEBUG) Log.v(TAG, "handleDraw:");
 			makeCurrent();
 			// 各Surfaceへ描画する
 			if (mImageSource != null) {
-				final int texId = mImageSource.getTexId();
-				synchronized (mTargets) {
-					final int n = mTargets.size();
+				final int texId = mImageSource.getTexture();
+				synchronized (mClientSync) {
+					final int n = mClients.size();
+					RendererSurfaceRec client;
 					for (int i = n - 1; i >= 0; i--) {
-						final IRendererTarget target = mTargets.valueAt(i);
-						if ((target != null) && target.canDraw()) {
+						client = mClients.valueAt(i);
+						if ((client != null) && client.canDraw()) {
 							try {
-								target.draw(mDrawer, texId, null); // target.draw(mDrawer, mTexId, mTexMatrix);
-								GLHelper.checkGlError("handleDraw");
+								client.draw(mDrawer, texId, null); // client.draw(mDrawer, mTexId, mTexMatrix);
+								GLHelper.checkGlError("handleSetBitmap");
 							} catch (final Exception e) {
 								// removeSurfaceが呼ばれなかったかremoveSurfaceを呼ぶ前に破棄されてしまった
-								mTargets.removeAt(i);
-								target.release();
+								mClients.removeAt(i);
+								client.release();
 							}
 						}
 					}
@@ -429,76 +426,58 @@ public class StaticTextureSource {
 		 * @param id
 		 * @param surface
 		 */
-		@WorkerThread
 		private void handleAddSurface(final int id, final Object surface, final int maxFps) {
 			if (DEBUG) Log.v(TAG, "handleAddSurface:id=" + id);
-			checkTarget();
-			synchronized (mTargets) {
-				IRendererTarget target = mTargets.get(id);
-				if (target == null) {
+			checkSurface();
+			synchronized (mClientSync) {
+				RendererSurfaceRec client = mClients.get(id);
+				if (client == null) {
 					try {
-						target = createRendererTarget(id, getEgl(), surface, maxFps);
-						mTargets.append(id, target);
+						client = RendererSurfaceRec.newInstance(getEgl(), surface, maxFps);
+						mClients.append(id, client);
 					} catch (final Exception e) {
 						Log.w(TAG, "invalid surface: surface=" + surface, e);
 					}
 				} else {
 					Log.w(TAG, "surface is already added: id=" + id);
 				}
-				mTargets.notifyAll();
+				mClientSync.notifyAll();
 			}
-		}
-
-		/**
-		 * IRendererTargetインスタンスを生成する
-		 * このクラスではRendererTarget.newInstanceを呼ぶだけ
-		 * @param id
-		 * @param egl
-		 * @param surface
-		 * @param maxFps
-		 * @return
-		 */
-		protected IRendererTarget createRendererTarget(final int id,
-			@NonNull final EGLBase egl,
-			final Object surface, final int maxFps) {
-
-			return RendererTarget.newInstance(getEgl(), surface, maxFps);
 		}
 
 		/**
 		 * 指定したIDの分配描画先Surfaceを破棄する
 		 * @param id
 		 */
-		@WorkerThread
 		private void handleRemoveSurface(final int id) {
 			if (DEBUG) Log.v(TAG, "handleRemoveSurface:id=" + id);
-			synchronized (mTargets) {
-				final IRendererTarget target = mTargets.get(id);
-				if (target != null) {
-					mTargets.remove(id);
-					target.release();
+			synchronized (mClientSync) {
+				final RendererSurfaceRec client = mClients.get(id);
+				if (client != null) {
+					mClients.remove(id);
+					client.release();
 				}
-				checkTarget();
-				mTargets.notifyAll();
+				checkSurface();
+				mClientSync.notifyAll();
 			}
 		}
 
 		/**
 		 * 念の為に分配描画先のSurfaceを全て破棄する
 		 */
-		@WorkerThread
 		private void handleRemoveAll() {
 			if (DEBUG) Log.v(TAG, "handleRemoveAll:");
-			synchronized (mTargets) {
-				final int n = mTargets.size();
+			synchronized (mClientSync) {
+				final int n = mClients.size();
+				RendererSurfaceRec client;
 				for (int i = 0; i < n; i++) {
-					final IRendererTarget target = mTargets.valueAt(i);
-					if (target != null) {
+					client = mClients.valueAt(i);
+					if (client != null) {
 						makeCurrent();
-						target.release();
+						client.release();
 					}
 				}
-				mTargets.clear();
+				mClients.clear();
 			}
 			if (DEBUG) Log.v(TAG, "handleRemoveAll:finished");
 		}
@@ -506,35 +485,33 @@ public class StaticTextureSource {
 		/**
 		 * 分配描画先のSurfaceが有効かどうかをチェックして無効なものは削除する
 		 */
-		@WorkerThread
-		private void checkTarget() {
-			if (DEBUG) Log.v(TAG, "checkTarget");
-			synchronized (mTargets) {
-				final int n = mTargets.size();
+		private void checkSurface() {
+			if (DEBUG) Log.v(TAG, "checkSurface");
+			synchronized (mClientSync) {
+				final int n = mClients.size();
 				for (int i = 0; i < n; i++) {
-					final IRendererTarget target = mTargets.valueAt(i);
-					if ((target != null) && !target.isValid()) {
-						final int id = mTargets.keyAt(i);
-						if (DEBUG) Log.i(TAG, "checkTarget:found invalid surface:id=" + id);
-						mTargets.valueAt(i).release();
-						mTargets.remove(id);
+					final RendererSurfaceRec client = mClients.valueAt(i);
+					if ((client != null) && !client.isValid()) {
+						final int id = mClients.keyAt(i);
+						if (DEBUG) Log.i(TAG, "checkSurface:found invalid surface:id=" + id);
+						mClients.valueAt(i).release();
+						mClients.remove(id);
 					}
 				}
 			}
-			if (DEBUG) Log.v(TAG, "checkTarget:finished");
+			if (DEBUG) Log.v(TAG, "checkSurface:finished");
 		}
 
 		/**
 		 * ソース静止画をセット
 		 * @param bitmap
 		 */
-		@WorkerThread
 		private void handleSetBitmap(final Bitmap bitmap) {
 			if (DEBUG) Log.v(TAG, "handleSetBitmap:bitmap=" + bitmap);
 			final int width = bitmap.getWidth();
 			final int height = bitmap.getHeight();
 			if (mImageSource == null) {
-				mImageSource = GLSurface.newInstance(false, width, height, false);
+				mImageSource = new TextureOffscreen(width, height, false);
 				GLHelper.checkGlError("handleSetBitmap");
 				mImageSource.loadBitmap(bitmap);
 			} else {

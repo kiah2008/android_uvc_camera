@@ -11,7 +11,7 @@ import java.util.List;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ public abstract class Pool<T> {
 	 */
 	public Pool(final int initNum, final int maxNumInPool, final int limitNum) {
 		mInitNum = initNum;
-		mMaxNumInPool = Math.min(maxNumInPool, limitNum);
+		mMaxNumInPool = maxNumInPool < limitNum ? maxNumInPool : limitNum;
 		mLimitNum = limitNum;
 		init();
 	}

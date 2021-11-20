@@ -3,7 +3,7 @@ package com.serenegiant.bluetooth;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,7 +30,6 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.serenegiant.common.R;
-import com.serenegiant.view.ViewUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -41,7 +40,7 @@ import java.util.List;
 public class BluetoothDeviceInfoRecyclerAdapter
 	extends RecyclerView.Adapter<BluetoothDeviceInfoRecyclerAdapter.ViewHolder> {
 
-	private static final boolean DEBUG = false;	// set false on production
+	private static final boolean DEBUG = true;	// set false on production
 	private static final String TAG = BluetoothDeviceInfoRecyclerAdapter.class.getSimpleName();
 
 	public interface OnItemClickListener {
@@ -175,7 +174,7 @@ public class BluetoothDeviceInfoRecyclerAdapter
 			mView = view;
 			nameTv = view.findViewById(R.id.name);
 			addressTv = view.findViewById(R.id.address);
-			icon = ViewUtils.findIconView(view);
+			icon = view.findViewById(R.id.icon);
 		}
 		
 	}

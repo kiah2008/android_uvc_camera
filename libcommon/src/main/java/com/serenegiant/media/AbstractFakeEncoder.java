@@ -3,7 +3,7 @@ package com.serenegiant.media;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,10 +28,9 @@ import androidx.annotation.Nullable;
 import android.util.Log;
 import android.view.Surface;
 
-import com.serenegiant.media.exceptions.TimeoutException;
 import com.serenegiant.utils.BufferHelper;
-import com.serenegiant.system.BuildCheck;
-import com.serenegiant.system.Time;
+import com.serenegiant.utils.BuildCheck;
+import com.serenegiant.utils.Time;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -45,6 +44,7 @@ public abstract class AbstractFakeEncoder implements Encoder {
 //	private static final boolean DEBUG = false;	// FIXME 実働時にはfalseにすること
 	private static final String TAG = AbstractFakeEncoder.class.getSimpleName();
 
+	@SuppressWarnings("deprecation")
 	@SuppressLint("InlinedApi")
 	public static final int BUFFER_FLAG_KEY_FRAME
 		= BuildCheck.isLollipop()
@@ -202,7 +202,6 @@ public abstract class AbstractFakeEncoder implements Encoder {
 	 * 出力ファイルのパスを返す
 	 * @return
 	 */
-	@Deprecated
 	@Override
 	public String getOutputPath() {
 		return mRecorder != null ? mRecorder.getOutputPath() : null;
@@ -242,6 +241,17 @@ public abstract class AbstractFakeEncoder implements Encoder {
     	offer(frame);
 	}
 
+	/**
+	 * このクラスではサポートしていない。
+	 * 代わりに#queueFrameへエンコード済みのフレームを渡すこと
+	 * encodeはnative側からアクセスするので変更時は注意
+	 * @param buffer
+	 */
+	@Override
+	public void encode(final ByteBuffer buffer) {
+		throw new UnsupportedOperationException("can not call encode");
+	}
+	
 	/**
 	 * このクラスではサポートしていない。
 	 * 代わりに#queueFrameへエンコード済みのフレームを渡すこと
@@ -533,7 +543,7 @@ public abstract class AbstractFakeEncoder implements Encoder {
 			Log.w(TAG, "muxer is unexpectedly null");
 			return;
 		}
-		frame.get(mBufferInfo);
+		mBufferInfo.set(0, frame.size, frame.presentationTimeUs, frame.flags);
 		final boolean isKeyFrame
 			= ((mBufferInfo.flags & BUFFER_FLAG_KEY_FRAME) == BUFFER_FLAG_KEY_FRAME);
 
@@ -543,7 +553,7 @@ public abstract class AbstractFakeEncoder implements Encoder {
 //			if (DEBUG) Log.d(TAG, "handleFrame:BUFFER_FLAG_KEY_FRAME");
 			// csd-0とcsd-1が同時に来ているはずなので分離してセットする
 			final byte[] tmp = new byte[mBufferInfo.size];
-			final ByteBuffer b = frame.get().duplicate();
+			final ByteBuffer b = frame.mBuffer.duplicate();
 			b.clear();
 			b.get(tmp, 0, mBufferInfo.size);
 			final int ix0 = BufferHelper.findAnnexB(tmp, 0);
@@ -572,7 +582,7 @@ public abstract class AbstractFakeEncoder implements Encoder {
 			mWaitingKeyFrame = false;
 			try {
 				mBufferInfo.presentationTimeUs = getNextOutputPTSUs(mBufferInfo.presentationTimeUs);
-				recorder.writeSampleData(mTrackIndex, frame.get(), mBufferInfo);
+				recorder.writeSampleData(mTrackIndex, frame.mBuffer, mBufferInfo);
 			 } catch (final TimeoutException e) {
 //				if (DEBUG) Log.v(TAG, "最大録画時間を超えた", e);
 				recorder.stopRecording();

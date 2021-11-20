@@ -29,10 +29,8 @@ dependencyResolutionManagement {
     }
 }
 
+include ':libcommon'
 include ':libuvccamera'
-include ':libcommon-4.1.1'
-//include ':usbCameraCommon'
-//include ':3rd_libs'
 include ':usbCameraTest'
 //include ':usbCameraTest0'
 //include ':usbCameraTest2'
@@ -42,4 +40,4 @@ include ':usbCameraTest'
 //include ':usbCameraTest6'
 //include ':usbCameraTest7'
 //include ':usbCameraTest8'
-include ':usbCameraTest9'
+//include ':usbCameraTest9'

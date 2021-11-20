@@ -3,7 +3,7 @@ package com.serenegiant.utils;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,12 +27,8 @@ import java.io.InputStreamReader;
 
 public class AssetsHelper {
 
-	private AssetsHelper() {
-		// インスタンス化をエラーにするためにデフォルトコンストラクタをprivateに
-	}
-
 	public static String loadString(@NonNull final AssetManager assets, @NonNull final String name) throws IOException {
-		final StringBuilder sb = new StringBuilder();
+		final StringBuffer sb = new StringBuffer();
 		final char[] buf = new char[1024];
 		final BufferedReader reader = new BufferedReader(new InputStreamReader(assets.open(name)));
 		int r = reader.read(buf);

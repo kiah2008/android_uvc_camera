@@ -1,28 +1,7 @@
 package com.serenegiant.utils;
-/*
- * libcommon
- * utility/helper classes for myself
- *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
-*/
 
-/**
- * XXX 何のために作ったか忘れたけどこのCRC32の結果はjava.util.zip.CRC32と違うので注意!
- */
 public class CRC32 {
-	private static final int[] crc32tab = {
+	private static final int crc32tab[] = { 
 		0x00000000, 0x77073096, 0xee0e612c, 0x990951ba,
 		0x076dc419, 0x706af48f, 0xe963a535, 0x9e6495a3,
 		0x0edb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988,

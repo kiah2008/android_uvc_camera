@@ -3,7 +3,7 @@ package com.serenegiant.media;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,10 +28,7 @@ import android.os.Build;
 import android.util.Log;
 import android.view.Surface;
 
-import com.serenegiant.media.exceptions.TimeoutException;
-import com.serenegiant.system.Time;
-
-import androidx.annotation.NonNull;
+import com.serenegiant.utils.Time;
 
 import static com.serenegiant.utils.BufferHelper.*;
 
@@ -90,12 +87,9 @@ public abstract class AbstractEncoder implements Encoder {
     protected final String MIME_TYPE;
 
 //********************************************************************************
-    public AbstractEncoder(final String mime_type,
-    	@NonNull final IRecorder recorder,
-    	@NonNull final EncoderListener listener) {
-
+    public AbstractEncoder(final String mime_type, final IRecorder recorder, final EncoderListener listener) {
     	if (listener == null) throw new NullPointerException("EncodeListener is null");
-    	if (recorder == null) throw new NullPointerException("recorder is null");
+    	if (recorder == null) throw new NullPointerException("IMuxer is null");
     	MIME_TYPE = mime_type;
     	mRecorder = recorder;
     	mListener = listener;
@@ -108,21 +102,14 @@ public abstract class AbstractEncoder implements Encoder {
      * 出力用のMuxerWrapperを返す
      * @return
      */
-    @NonNull
 	public IRecorder getRecorder() {
     	return mRecorder;
     }
-
-	@NonNull
-	public VideoConfig getConfig() {
-		return mRecorder.getConfig();
-	}
 
     /**
      * 出力ファイルのパスを返す
      * @return
      */
-    @Deprecated
     @Override
 	public String getOutputPath() {
     	return mRecorder != null ? mRecorder.getOutputPath() : null;
@@ -358,6 +345,10 @@ public abstract class AbstractEncoder implements Encoder {
         encode(null, 0, getInputPTSUs());
 	}
 
+    // encodeはnative側からアクセスするので変更時は注意
+	@Override
+	public void encode(final ByteBuffer buffer){/* VideoEncoder以外は特に何もしない */}
+
 	@Override
 	public boolean isCapturing() {
         synchronized (mSync) {
@@ -377,6 +368,7 @@ public abstract class AbstractEncoder implements Encoder {
 			if (!mIsCapturing || mRequestStop) return;
 			if (mMediaCodec == null) return;
 		}
+        @SuppressWarnings("deprecation")
 		final ByteBuffer[] inputBuffers = mMediaCodec.getInputBuffers();
         while (mIsCapturing) {
 	        final int inputBufferIndex = mMediaCodec.dequeueInputBuffer(TIMEOUT_USEC);
@@ -412,6 +404,7 @@ public abstract class AbstractEncoder implements Encoder {
     /**
      * エンコードしたデータをmuxerへ書き込む
      */
+	@SuppressWarnings("deprecation")
 	private final void drain() {
 //    	if (DEBUG) Log.v(TAG, "drain:encoder=" + this);
     	if (mMediaCodec == null) return;

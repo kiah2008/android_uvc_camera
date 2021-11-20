@@ -3,7 +3,7 @@ package com.serenegiant.media;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,8 +34,8 @@ import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
 import android.util.Log;
 
-import com.serenegiant.system.BuildCheck;
-import com.serenegiant.system.Time;
+import com.serenegiant.utils.BuildCheck;
+import com.serenegiant.utils.Time;
 
 public abstract class IAudioSampler {
 //	private static final boolean DEBUG = false;	// FIXME 実働時はfalseにすること
@@ -192,7 +192,6 @@ public abstract class IAudioSampler {
 				try {
 					mCallbackSync.wait();
 				} catch (InterruptedException e) {
-					// ignore
 				}
 			}
 		}
@@ -261,9 +260,9 @@ public abstract class IAudioSampler {
 	 * @param data
 	 */
 	private void callOnData(@NonNull final MediaData data) {
-		final ByteBuffer buf = data.get();
-		final int size = data.size();
-		final long pts = data.presentationTimeUs();
+		final ByteBuffer buf = data.mBuffer;
+		final int size = data.size;
+		final long pts = data.presentationTimeUs;
 		for (final SoundSamplerCallback callback: mCallbacks) {
 			try {
 				buf.clear();
@@ -322,9 +321,8 @@ public abstract class IAudioSampler {
 			result = new MediaData(mDefaultBufferSize);
 			mBufferNum++;
 		}
-		if (result != null) {
-			result.clear();
-		}
+		if (result != null)
+			result.size = 0;
 //		if (DEBUG) Log.v(TAG, "obtain:result=" + result);
 		return result;
 	}

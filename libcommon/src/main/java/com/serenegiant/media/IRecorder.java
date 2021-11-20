@@ -3,7 +3,7 @@ package com.serenegiant.media;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -73,7 +73,7 @@ public interface IRecorder {
 	@Retention(RetentionPolicy.SOURCE)
 	public @interface RecorderState {}
 
-	public VideoConfig getConfig();
+	public void setMuxer(final IMuxer muxer);
 
 	/**
 	 * Encoderの準備
@@ -126,11 +126,8 @@ public interface IRecorder {
 
 	public int getState();
 
-	public void setMuxer(final IMuxer muxer);
-
 	public IMuxer getMuxer();
 
-	@Deprecated
 	@Nullable
 	public String getOutputPath();
 	

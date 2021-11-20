@@ -3,7 +3,7 @@ package com.serenegiant.bluetooth;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,7 +44,6 @@ import java.io.OutputStream;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -150,12 +149,15 @@ public class BluetoothManager {
 
 	/**
 	 * ペアリング済みのBluetooth機器一覧を取得する
-	 * @return Bluetoothに対応していないまたは無効なら空set
+	 * @return Bluetoothに対応していないまたは無効ならnull
 	 */
-	@NonNull
+	@Nullable
 	public static Set<BluetoothDevice> getBondedDevices() {
 		final BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
-		return ((adapter != null) && adapter.isEnabled()) ? adapter.getBondedDevices() : Collections.emptySet();
+		if ((adapter != null) && adapter.isEnabled()) {
+			return adapter.getBondedDevices();
+		}
+		return null;
 	}
 
 	/**

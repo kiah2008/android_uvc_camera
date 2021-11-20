@@ -3,7 +3,7 @@ package com.serenegiant.widget;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -98,8 +98,6 @@ public class FrameSelectorView extends LinearLayout {
 		sBUTTONS.put(R.id.frame_cross_circle2_button, FrameView.FRAME_TYPE_CROSS_CIRCLE2);
 	}
 
-	private static final int NUM_COLORS = 8;
-
 	private static final int[] COLOR_BTN_IDS = {
 		R.id.color1_button,
 		R.id.color2_button,
@@ -111,7 +109,7 @@ public class FrameSelectorView extends LinearLayout {
 		R.id.color8_button,
 	};
 	/** 色配列 */
-	private final int[/*NUM_COLORS*/] mColors = {
+	private final int[] mColors = {
 		0xffff0000,
 		0xffffa500,
 		0xffffff00,
@@ -210,8 +208,8 @@ public class FrameSelectorView extends LinearLayout {
 	 * @param colors 8個以上必要
 	 */
 	public void setColors(final int[] colors) {
-		if ((colors != null) && (colors.length >= NUM_COLORS)) {
-			System.arraycopy(mColors, 0, colors, 0, NUM_COLORS);
+		if ((colors != null) && (colors.length >= 8)) {
+			System.arraycopy(mColors, 0, colors, 0, 8);
 			updateColors(colors);
 		}
 	}
@@ -229,22 +227,18 @@ public class FrameSelectorView extends LinearLayout {
 	 * @param color
 	 */
 	public void addColor(final int color) {
-		int ix = 0;	// 廃棄位置...未登録なら先頭(0)、登録済みならその位置
-		// 既に同じ色が登録済みかどうかを検索する
-		for (int i = 0; i < NUM_COLORS; i++) {
+		int ix = 0;
+		for (int i = 0; i < 8; i++) {
 			if (mColors[i] == color) {
-				// 同じ色が見つかった...一番後ろに回す
 				ix = i;
 				break;
 			}
 		}
-		// 廃棄色のインデックスより後ろを1つ前にずらす
 //		for (int i = ix; i < 7; i++) {
 //			mColors[i] = mColors[i + 1];
 //		}
-		System.arraycopy(mColors, ix + 1, mColors, ix, NUM_COLORS - 1 - ix);
-		// 一番後ろに追加する
-		mColors[NUM_COLORS-1] = color;
+		System.arraycopy(mColors, ix, mColors, ix + 1, 7);
+		mColors[7] = color;
 		updateColors(mColors);
 	}
 
@@ -256,8 +250,8 @@ public class FrameSelectorView extends LinearLayout {
 		post(new Runnable() {
 			@Override
 			public void run() {
-				if ((colors != null) && (colors.length >= NUM_COLORS)) {
-					for (int i = 0; i < NUM_COLORS; i++) {
+				if ((colors != null) && (colors.length >= 8)) {
+					for (int i = 0; i < 8; i++) {
 						final int id = COLOR_BTN_IDS[i];
 						final ImageButton button = findViewById(id);
 						if (button != null) {
@@ -343,7 +337,7 @@ public class FrameSelectorView extends LinearLayout {
 			if (mCallback != null) {
 				try {
 					final int ix = sBUTTONS.get(view.getId());
-					if ((ix >= 0) && (ix < NUM_COLORS)) {
+					if ((ix >= 0) && (ix < 8)) {
 						mCallback.onColorSelected(FrameSelectorView.this, ix, mColors[ix]);
 					} else {
 						mCallback.onColorSelected(FrameSelectorView.this, -1, 0);

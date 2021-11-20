@@ -3,7 +3,7 @@ package com.serenegiant.utils;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,10 +23,6 @@ package com.serenegiant.utils;
  * @author saki
  */
 public final class BitsHelper {
-	private BitsHelper() {
-		// インスタンス化をエラーにするためにデフォルトコンストラクタをprivateに
-	}
-
 	/**
 	 * 各ビット列の立っているビット数を数える
 	 * @param v

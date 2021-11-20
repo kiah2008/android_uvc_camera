@@ -3,7 +3,7 @@ package com.serenegiant.glutils;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,12 +29,12 @@ import android.os.Build;
 import androidx.annotation.IntRange;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.annotation.WorkerThread;
-
 import android.util.Log;
+import android.util.SparseArray;
 import android.view.Surface;
+import android.view.SurfaceHolder;
 
-import com.serenegiant.system.BuildCheck;
+import com.serenegiant.utils.BuildCheck;
 
 import java.io.BufferedOutputStream;
 import java.io.FileNotFoundException;
@@ -52,10 +52,21 @@ public abstract class AbstractRendererHolder implements IRendererHolder {
 	private static final String RENDERER_THREAD_NAME = "RendererHolder";
 	private static final String CAPTURE_THREAD_NAME = "CaptureTask";
 
+	protected static final int REQUEST_DRAW = 1;
+	protected static final int REQUEST_UPDATE_SIZE = 2;
+	protected static final int REQUEST_ADD_SURFACE = 3;
+	protected static final int REQUEST_REMOVE_SURFACE = 4;
+	protected static final int REQUEST_REMOVE_SURFACE_ALL = 12;
+	protected static final int REQUEST_RECREATE_MASTER_SURFACE = 5;
+	protected static final int REQUEST_MIRROR = 6;
+	protected static final int REQUEST_ROTATE = 7;
+	protected static final int REQUEST_CLEAR = 8;
+	protected static final int REQUEST_CLEAR_ALL = 9;
+	protected static final int REQUEST_SET_MVP = 10;
+
 	protected final Object mSync = new Object();
 	@Nullable
 	private final RenderHolderCallback mCallback;
-	private final int mMaxClientVersion;
 	private volatile boolean isRunning;
 
 	private OutputStream mCaptureStream;
@@ -63,30 +74,24 @@ public abstract class AbstractRendererHolder implements IRendererHolder {
 	private int mCaptureFormat;
 	@IntRange(from = 1L,to = 99L)
 	private int mCaptureCompression = DEFAULT_CAPTURE_COMPRESSION;
-	private OnCapturedListener mOnCapturedListener;
-	protected final BaseRendererTask mRendererTask;
+	protected final RendererTask mRendererTask;
 
-	/**
-	 * コンストラクタ
-	 * @param width
-	 * @param height
-	 * @param maxClientVersion
-	 * @param sharedContext
-	 * @param flags
-	 * @param enableVSync Choreographerを使ってvsync同期して映像更新するかどうか
-	 * @param callback
-	 */
 	protected AbstractRendererHolder(final int width, final int height,
-		final int maxClientVersion,
-		@Nullable final EGLBase.IContext sharedContext, final int flags,
-		final boolean enableVSync,
 		@Nullable final RenderHolderCallback callback) {
+		
+		this(width, height,
+			3, null, EglTask.EGL_FLAG_RECORDABLE,
+			callback);
+	}
 
+	protected AbstractRendererHolder(final int width, final int height,
+		final int maxClientVersion, final EGLBase.IContext sharedContext, final int flags,
+		@Nullable final RenderHolderCallback callback) {
+		
 		mCallback = callback;
-		mMaxClientVersion = maxClientVersion;
 		mRendererTask = createRendererTask(width, height,
-			maxClientVersion, sharedContext, flags, enableVSync);
-		mRendererTask.start(RENDERER_THREAD_NAME);
+			maxClientVersion, sharedContext, flags);
+		new Thread(mRendererTask, RENDERER_THREAD_NAME).start();
 		if (!mRendererTask.waitReady()) {
 			// 初期化に失敗した時
 			throw new RuntimeException("failed to start renderer thread");
@@ -182,7 +187,7 @@ public abstract class AbstractRendererHolder implements IRendererHolder {
 	 * このメソッドは指定したSurfaceが追加されるか
 	 * interruptされるまでカレントスレッドをブロックする。
 	 * @param id 普通はSurface#hashCodeを使う
-	 * @param surface Surface/SurfaceHolder/SurfaceTexture/SurfaceView/TextureWrapperのいずれか
+	 * @param surface
 	 * @param isRecordable
 	 */
 	@Override
@@ -199,7 +204,7 @@ public abstract class AbstractRendererHolder implements IRendererHolder {
 	 * このメソッドは指定したSurfaceが追加されるか
 	 * interruptされるまでカレントスレッドをブロックする。
 	 * @param id 普通はSurface#hashCodeを使う
-	 * @param surface Surface/SurfaceHolder/SurfaceTexture/SurfaceView/TextureWrapperのいずれか
+	 * @param surface
 	 * @param isRecordable
 	 * @param maxFps
 	 */
@@ -284,7 +289,8 @@ public abstract class AbstractRendererHolder implements IRendererHolder {
 	 */
 	@Override
 	public void requestFrame() {
-		mRendererTask.requestFrame();
+		mRendererTask.removeRequest(REQUEST_DRAW);
+		mRendererTask.offer(REQUEST_DRAW);
 	}
 
 	/**
@@ -298,18 +304,52 @@ public abstract class AbstractRendererHolder implements IRendererHolder {
 
 	/**
 	 * 静止画を撮影する
+	 * 撮影完了を待機しない
+	 * @param path
+	 */
+	@Deprecated
+	@Override
+	public void captureStillAsync(@NonNull final String path)
+		throws FileNotFoundException, IllegalStateException {
+
+		if (DEBUG) Log.v(TAG, "captureStillAsync:" + path);
+
+		captureStill(new BufferedOutputStream(new FileOutputStream(path)),
+			getCaptureFormat(path), DEFAULT_CAPTURE_COMPRESSION, false);
+	}
+	
+	/**
+	 * 静止画を撮影する
+	 * 撮影完了を待機しない
+	 * @param path
+	 * @param captureCompression
+	 */
+	@Deprecated
+	@Override
+	public void captureStillAsync(@NonNull final String path,
+		@IntRange(from = 1L,to = 99L) final int captureCompression)
+			throws FileNotFoundException, IllegalStateException {
+
+		if (DEBUG) Log.v(TAG, "captureStillAsync:" + path
+			+ ",captureCompression=" + captureCompression);
+
+		captureStill(new BufferedOutputStream(new FileOutputStream(path)),
+			getCaptureFormat(path), captureCompression, false);
+	}
+
+	/**
+	 * 静止画を撮影する
 	 * 撮影完了を待機する
 	 * @param path
 	 */
 	@Override
-	public void captureStill(@NonNull final String path,
-		@Nullable final OnCapturedListener listener)
-			throws FileNotFoundException, IllegalStateException {
+	public void captureStill(@NonNull final String path)
+		throws FileNotFoundException, IllegalStateException {
 
 		if (DEBUG) Log.v(TAG, "captureStill:" + path);
 
 		captureStill(new BufferedOutputStream(new FileOutputStream(path)),
-			getCaptureFormat(path), DEFAULT_CAPTURE_COMPRESSION, listener);
+			getCaptureFormat(path), DEFAULT_CAPTURE_COMPRESSION, true);
 	}
 	
 	/**
@@ -319,28 +359,42 @@ public abstract class AbstractRendererHolder implements IRendererHolder {
 	 */
 	@Override
 	public void captureStill(@NonNull final String path,
-		@IntRange(from = 1L,to = 99L)final int captureCompression,
-		@Nullable final OnCapturedListener listener)
+		@IntRange(from = 1L,to = 99L)final int captureCompression)
 			throws FileNotFoundException, IllegalStateException {
 
 		if (DEBUG) Log.v(TAG, "captureStill:" + path
 			+ ",captureCompression=" + captureCompression);
 		captureStill(new BufferedOutputStream(new FileOutputStream(path)),
-			getCaptureFormat(path), captureCompression, listener);
+			getCaptureFormat(path), captureCompression, true);
 	}
 
+	/**
+	 * 静止画を撮影する
+	 * 撮影完了を待機する
+	 * @param out
+	 * @param captureFormat
+	 * @param captureCompression
+	 */
+	@Override
+	public void captureStill(@NonNull final OutputStream out,
+		@StillCaptureFormat final int captureFormat,
+		@IntRange(from = 1L,to = 99L) final int captureCompression)
+			throws IllegalStateException {
+		
+		captureStill(out, captureFormat, captureCompression, true);
+	}
+	
 	/**
 	 * 実際の静止画撮影要求メソッド
 	 * @param out
 	 * @param captureFormat
 	 * @param captureCompression
-	 * @param listener
+	 * @param needWait 撮影完了を待機するを待機するかどうか
 	 */
-	@Override
-	public void captureStill(@NonNull final OutputStream out,
+	private void captureStill(@NonNull final OutputStream out,
 		@StillCaptureFormat final int captureFormat,
 		@IntRange(from = 1L,to = 99L) final int captureCompression,
-		@Nullable final OnCapturedListener listener) throws IllegalStateException {
+		final boolean needWait) throws IllegalStateException {
 
 		synchronized (mSync) {
 			if (!isRunning) {
@@ -352,21 +406,22 @@ public abstract class AbstractRendererHolder implements IRendererHolder {
 			mCaptureStream = out;
 			mCaptureFormat = captureFormat;
 			mCaptureCompression = captureCompression;
-			mOnCapturedListener = listener;
 			mSync.notifyAll();
+			if (needWait) {
+				// 撮影完了街をする場合
+				for ( ; isRunning && (mCaptureStream != null) ; ) {
+					try {
+						if (DEBUG) Log.v(TAG, "静止画撮影待ち");
+						mSync.wait(1000);
+					} catch (final InterruptedException e) {
+						// ignore
+					}
+				}
+			}
 		}
 		if (DEBUG) Log.v(TAG, "captureStill:終了");
 	}
-
-	/**
-	 * レンダリングスレッド上で指定したタスクを実行する
-	 * @param task
-	 */
-	@Override
-	public void queueEvent(@NonNull final Runnable task) {
-		mRendererTask.queueEvent(task);
-	}
-
+	
 	/**
 	 * パス文字列の拡張子を調べて静止画圧縮フォーマットを取得する。
 	 * jpeg(jpg)/png/webpのいずれでもなければIllegalArgumentExceptionを投げる
@@ -402,40 +457,26 @@ public abstract class AbstractRendererHolder implements IRendererHolder {
 
 		Bitmap.CompressFormat result;
 		switch (captureFormat) {
+		case OUTPUT_FORMAT_JPEG:
+			result = Bitmap.CompressFormat.JPEG;
+			break;
 		case OUTPUT_FORMAT_PNG:
 			result = Bitmap.CompressFormat.PNG;
 			break;
 		case OUTPUT_FORMAT_WEBP:
 			result = Bitmap.CompressFormat.WEBP;
 			break;
-		case OUTPUT_FORMAT_JPEG:
 		default:
 			result = Bitmap.CompressFormat.JPEG;
 			break;
 		}
 		return result;
 	}
-
 //--------------------------------------------------------------------------------
-
-	/**
-	 *
-	 * @param width
-	 * @param height
-	 * @param maxClientVersion
-	 * @param sharedContext
-	 * @param flags
-	 * @param enableVsync Choreographerを使ってvsync同期して映像更新するかどうか
-	 * @return
-	 */
 	@NonNull
-	protected abstract BaseRendererTask createRendererTask(
-		final int width, final int height,
-		final int maxClientVersion,
-		@Nullable final EGLBase.IContext sharedContext, final int flags,
-		final boolean enableVsync);
+	protected abstract RendererTask createRendererTask(final int width, final int height,
+		final int maxClientVersion, final EGLBase.IContext sharedContext, final int flags);
 	
-//--------------------------------------------------------------------------------
 	protected void startCaptureTask() {
 		new Thread(mCaptureTask, CAPTURE_THREAD_NAME).start();
 		synchronized (mSync) {
@@ -451,9 +492,9 @@ public abstract class AbstractRendererHolder implements IRendererHolder {
 	
 	protected void notifyCapture() {
 //		if (DEBUG) Log.v(TAG, "notifyCapture:");
-		synchronized (mSync) {
+		synchronized (mCaptureTask) {
 			// キャプチャタスクに映像が更新されたことを通知
-			mSync.notify();
+			mCaptureTask.notify();
 		}
 	}
 
@@ -489,323 +530,717 @@ public abstract class AbstractRendererHolder implements IRendererHolder {
 	}
 
 //--------------------------------------------------------------------------------
-	protected static class BaseRendererTask extends AbstractDistributeTask
-		implements SurfaceTexture.OnFrameAvailableListener {
-
-		@NonNull
+	protected abstract static class BaseRendererTask extends EglTask {
+		private final SparseArray<RendererSurfaceRec> mClients
+			= new SparseArray<RendererSurfaceRec>();
 		private final AbstractRendererHolder mParent;
-		@NonNull
-		private final EglTask mEglTask;
-		@NonNull
+		private int mVideoWidth, mVideoHeight;
 		final float[] mTexMatrix = new float[16];
-		private int mTexId;
-		private SurfaceTexture mInputTexture;
-		private Surface mInputSurface;
+		int mTexId;
+		private SurfaceTexture mMasterTexture;
+		private Surface mMasterSurface;
+		@MirrorMode
+		private int mMirror = MIRROR_NORMAL;
+		private int mRotation = 0;
+		private volatile boolean mIsFirstFrameRendered;
+		
+		public BaseRendererTask(@NonNull final AbstractRendererHolder parent,
+			final int width, final int height) {
 
-		/**
-		 * コンストラクタ:
-		 * @param parent
-		 * @param width
-		 * @param height
-		 * @param maxClientVersion
-		 * @param sharedContext
-		 * @param flags
-		 * @param enableVSync Choreographerを使ってvsync同期して映像更新するかどうか
-		 */
+			this(parent, width, height,
+				3, null, EglTask.EGL_FLAG_RECORDABLE);
+		}
+
 		public BaseRendererTask(@NonNull final AbstractRendererHolder parent,
 			final int width, final int height,
 			final int maxClientVersion,
-			@Nullable final EGLBase.IContext sharedContext, final int flags,
-			final boolean enableVSync) {
-
-			super(width, height, enableVSync);
+			final EGLBase.IContext sharedContext, final int flags) {
+	
+			super(maxClientVersion, sharedContext, flags);
 			mParent = parent;
-			mEglTask = new EglTask(maxClientVersion, sharedContext, flags) {
-				@Override
-				protected void onStart() {
-					handleOnStart();
-				}
-
-				@Override
-				protected void onStop() {
-					handleOnStop();
-				}
-
-				@Override
-				protected Object processRequest(
-					final int request, final int arg1, final int arg2, final Object obj)
-						throws TaskBreak {
-
-					return handleRequest(request, arg1, arg2, obj);
-				}
-			};
+			mVideoWidth = width > 0 ? width : 640;
+			mVideoHeight = height > 0 ? height : 480;
 		}
-
+		/**
+		 * ワーカースレッド開始時の処理(ここはワーカースレッド上)
+		 */
 		@Override
-		public void release() {
-			if (DEBUG) Log.v(TAG, "release:");
-			mEglTask.release();
-			super.release();
-		}
-
-		@Override
-		public void start(final String tag) {
-			new Thread(mEglTask, tag).start();
-		}
-
-		@Override
-		public boolean waitReady() {
-			return mEglTask.waitReady();
-		}
-
-		@Override
-		public boolean isRunning() {
-			return mEglTask.isRunning();
-		}
-
-		@Override
-		public boolean isFinished() {
-			return mEglTask.isFinished();
-		}
-
-		@Override
-		public boolean offer(final int request) {
-			return mEglTask.offer(request);
-		}
-
-		@Override
-		public boolean offer(final int request, final Object obj) {
-			return mEglTask.offer(request, obj);
-		}
-
-		@Override
-		public boolean offer(final int request, final int arg1) {
-			return mEglTask.offer(request, arg1);
-		}
-
-		@Override
-		public boolean offer(final int request, final int arg1, final int arg2) {
-			return mEglTask.offer(request, arg1, arg2);
-		}
-
-		@Override
-		public boolean offer(final int request, final int arg1, final int arg2, final Object obj) {
-			return mEglTask.offer(request, arg1, arg2, obj);
-		}
-
-		@Override
-		public void removeRequest(final int request) {
-			mEglTask.removeRequest(request);
-		}
-
-		@Override
-		public EGLBase getEgl() {
-			return mEglTask.getEgl();
-		}
-
-		@Override
-		public GLContext getGLContext() {
-			return mEglTask.getGLContext();
-		}
-
-		@Override
-		public EGLBase.IContext getContext() {
-			return mEglTask.getContext();
-		}
-
-		@Override
-		public void makeCurrent() {
-			mEglTask.makeCurrent();
-		}
-
-		@Override
-		public boolean isGLES3() {
-			return mEglTask.isGLES3();
-		}
-
-		@Override
-		public boolean isOES3() {
-			return mEglTask.isOES3();
-		}
-
-		@Override
-		public boolean isMasterSurfaceValid() {
-			return (mInputSurface != null) && (mInputSurface.isValid());
-		}
-
-		@Override
-		public int getTexId() {
-			return mTexId;
-		}
-
-		@Override
-		public float[] getTexMatrix() {
-			return mTexMatrix;
-		}
-
-		@Override
-		public void notifyParent(final boolean isRunning) {
+		protected final void onStart() {
+//			if (DEBUG) Log.v(TAG, "onStart:");
+			handleReCreateMasterSurface();
+			internalOnStart();
 			synchronized (mParent.mSync) {
-				mParent.isRunning = isRunning;
+				mParent.isRunning = true;
 				mParent.mSync.notifyAll();
 			}
+//			if (DEBUG) Log.v(TAG, "onStart:finished");
 		}
-
-		@Override
-		public void callOnFrameAvailable() {
-			mParent.callOnFrameAvailable();
-		}
-
-		@Override
-		protected void handleDrawTargets(
-			final int texId, @NonNull final float[] texMatrix) {
-
-			super.handleDrawTargets(texId, texMatrix);
-			mParent.notifyCapture();
-		}
-
+		
 		/**
-		 * 映像入力用Surfaceを再生成する
+		 * ワーカースレッド終了時の処理(ここはまだワーカースレッド上)
 		 */
-		@SuppressLint("NewApi")
-		@WorkerThread
 		@Override
-		protected void handleReCreateInputSurface() {
-			makeCurrent();
-			handleReleaseInputSurface();
-			makeCurrent();
-			if (isOES3()) {
-				mTexId = com.serenegiant.glutils.es3.GLHelper.initTex(
-					GL_TEXTURE_EXTERNAL_OES, GLES30.GL_TEXTURE0, GLES30.GL_NEAREST);
-			} else {
-				mTexId = com.serenegiant.glutils.es2.GLHelper.initTex(
-					GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE0, GLES20.GL_NEAREST);
+		protected void onStop() {
+//			if (DEBUG) Log.v(TAG, "onStop");
+			synchronized (mParent.mSync) {
+				mParent.isRunning = false;
+				mParent.mSync.notifyAll();
 			}
-			mInputTexture = new SurfaceTexture(mTexId);
-			mInputSurface = new Surface(mInputTexture);
-			if (BuildCheck.isAndroid4_1()) {
-				mInputTexture.setDefaultBufferSize(width(), height());
+			makeCurrent();
+			internalOnStop();
+			handleReleaseMasterSurface();
+			handleRemoveAll();
+//			if (DEBUG) Log.v(TAG, "onStop:finished");
+		}
+		
+		@Override
+		protected boolean onError(final Exception e) {
+//			if (DEBUG) Log.w(TAG, e);
+			return false;
+		}
+		
+		protected abstract void internalOnStart();
+		protected abstract void internalOnStop();
+
+		@Override
+		protected Object processRequest(final int request,
+			final int arg1, final int arg2, final Object obj) {
+
+			switch (request) {
+			case REQUEST_DRAW:
+				handleDraw();
+				break;
+			case REQUEST_UPDATE_SIZE:
+				handleResize(arg1, arg2);
+				break;
+			case REQUEST_ADD_SURFACE:
+				handleAddSurface(arg1, obj, arg2);
+				break;
+			case REQUEST_REMOVE_SURFACE:
+				handleRemoveSurface(arg1);
+				break;
+			case REQUEST_REMOVE_SURFACE_ALL:
+				handleRemoveAll();
+				break;
+			case REQUEST_RECREATE_MASTER_SURFACE:
+				handleReCreateMasterSurface();
+				break;
+			case REQUEST_MIRROR:
+				handleMirror(arg1);
+				break;
+			case REQUEST_ROTATE:
+				handleRotate(arg1, arg2);
+				break;
+			case REQUEST_CLEAR:
+				handleClear(arg1, arg2);
+				break;
+			case REQUEST_CLEAR_ALL:
+				handleClearAll(arg1);
+				break;
+			case REQUEST_SET_MVP:
+				handleSetMvp(arg1, arg2, obj);
+				break;
 			}
-			mInputTexture.setOnFrameAvailableListener(this);
-			mParent.callOnCreate(mInputSurface);
+			return null;
+		}
+	
+		/**
+		 * マスター映像取得用のSurfaceを取得
+		 * @return
+		 */
+		public Surface getSurface() {
+//			if (DEBUG) Log.v(TAG, "getSurface:" + mMasterSurface);
+			checkMasterSurface();
+			return mMasterSurface;
+		}
+	
+		/**
+		 * マスター映像受け取り用のSurfaceTextureを取得
+		 * @return
+		 */
+		public SurfaceTexture getSurfaceTexture() {
+//		if (DEBUG) Log.v(TAG, "getSurfaceTexture:" + mMasterTexture);
+			checkMasterSurface();
+			return mMasterTexture;
+		}
+	
+		/**
+		 * 分配描画用のSurfaceを追加
+		 * このメソッドは指定したSurfaceが追加されるか
+		 * interruptされるまでカレントスレッドをブロックする。
+		 * @param id
+		 * @param surface
+		 */
+		public void addSurface(final int id, final Object surface)
+			throws IllegalStateException, IllegalArgumentException {
+
+			addSurface(id, surface, -1);
+		}
+	
+		/**
+		 * 分配描画用のSurfaceを追加
+		 * このメソッドは指定したSurfaceが追加されるか
+		 * interruptされるまでカレントスレッドをブロックする。
+		 * @param id
+		 * @param surface
+		 */
+		public void addSurface(final int id,
+			final Object surface, final int maxFps)
+				throws IllegalStateException, IllegalArgumentException {
+
+			checkFinished();
+			if (!((surface instanceof SurfaceTexture)
+				|| (surface instanceof Surface)
+				|| (surface instanceof SurfaceHolder))) {
+
+				throw new IllegalArgumentException(
+					"Surface should be one of Surface, SurfaceTexture or SurfaceHolder");
+			}
+			synchronized (mClients) {
+				if (mClients.get(id) == null) {
+					for ( ; isRunning() ; ) {
+						if (offer(REQUEST_ADD_SURFACE, id, maxFps, surface)) {
+							try {
+								mClients.wait();
+							} catch (final InterruptedException e) {
+								// ignore
+							}
+							break;
+						} else {
+							// キューに追加できなかった時は待機する
+							try {
+								mClients.wait(5);
+							} catch (final InterruptedException e) {
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+	
+		/**
+		 * 分配描画用のSurfaceを削除
+		 * このメソッドは指定したSurfaceが削除されるか
+		 * interruptされるまでカレントスレッドをブロックする。
+		 * @param id
+		 */
+		public void removeSurface(final int id) {
+			synchronized (mClients) {
+				if (mClients.get(id) != null) {
+					for ( ; isRunning() ; ) {
+						if (offer(REQUEST_REMOVE_SURFACE, id)) {
+							try {
+								mClients.wait();
+							} catch (final InterruptedException e) {
+								// ignore
+							}
+							break;
+						} else {
+							// キューに追加できなかった時は待機する
+							try {
+								mClients.wait(5);
+							} catch (final InterruptedException e) {
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+	
+		/**
+		 * 分配描画用のSurfaceを全て削除する
+		 * このメソッドはSurfaceが削除されるか
+		 * interruptされるまでカレントスレッドをブロックする。
+		 */
+		public void removeSurfaceAll() {
+			synchronized (mClients) {
+				for ( ; isRunning() ; ) {
+					if (offer(REQUEST_REMOVE_SURFACE_ALL)) {
+						try {
+							mClients.wait();
+						} catch (final InterruptedException e) {
+							// ignore
+						}
+						break;
+					} else {
+						// キューに追加できなかった時は待機する
+						try {
+							mClients.wait(5);
+						} catch (final InterruptedException e) {
+							break;
+						}
+					}
+				}
+			}
+		}
+				
+		/**
+		 * 指定したIDの分配描画用のSurfaceを指定した色で塗りつぶす
+		 * @param id
+		 * @param color
+		 */
+		public void clearSurface(final int id, final int color) {
+			checkFinished();
+			offer(REQUEST_CLEAR, id, color);
+		}
+	
+		public void clearSurfaceAll(final int color) {
+			checkFinished();
+			offer(REQUEST_CLEAR_ALL, color);
+		}
+		
+		public void setMvpMatrix(final int id,
+			final int offset, @NonNull final float[] matrix) {
+			checkFinished();
+			offer(REQUEST_SET_MVP, id, offset, matrix);
+		}
+		
+		public boolean isEnabled(final int id) {
+			synchronized (mClients) {
+				final RendererSurfaceRec rec = mClients.get(id);
+				return rec != null && rec.isEnabled();
+			}
+		}
+		
+		public void setEnabled(final int id, final boolean enable) {
+			synchronized (mClients) {
+				final RendererSurfaceRec rec = mClients.get(id);
+				if (rec != null) {
+					rec.setEnabled(enable);
+				}
+			}
+		}
+	
+		/**
+		 * 分配描画用のSurfaceの数を取得
+		 * @return
+		 */
+		public int getCount() {
+			synchronized (mClients) {
+				return mClients.size();
+			}
+		}
+	
+		/**
+		 * リサイズ
+		 * @param width
+		 * @param height
+		 */
+		public void resize(final int width, final int height)
+			throws IllegalStateException {
+
+			checkFinished();
+			if ( ((width > 0) && (height > 0))
+				&& ((mVideoWidth != width) || (mVideoHeight != height)) ) {
+
+				offer(REQUEST_UPDATE_SIZE, width, height);
+			}
+		}
+	
+		protected int width() {
+			return mVideoWidth;
+		}
+		
+		protected int height() {
+			return mVideoHeight;
+		}
+		
+		public void mirror(final int mirror) {
+			checkFinished();
+			if (mMirror != mirror) {
+				offer(REQUEST_MIRROR, mirror);
+			}
 		}
 
+		@MirrorMode
+		public int mirror() {
+			return mMirror;
+		}
+		
 		/**
-		 * 映像入力用Surfaceを破棄する
+		 * 分配描画用のマスターSurfaceが有効かどうかをチェックして無効なら再生成する
 		 */
-		@SuppressLint("NewApi")
-		@WorkerThread
-		@Override
-		protected void handleReleaseInputSurface() {
-			if (mInputSurface != null) {
+		public void checkMasterSurface() {
+			checkFinished();
+			if ((mMasterSurface == null) || (!mMasterSurface.isValid())) {
+				Log.d(TAG, "checkMasterSurface:invalid master surface");
+				offerAndWait(REQUEST_RECREATE_MASTER_SURFACE, 0, 0, null);
+			}
+		}
+	
+		protected void checkFinished() throws IllegalStateException {
+			if (isFinished()) {
+				throw new IllegalStateException("already finished");
+			}
+		}
+
+		protected AbstractRendererHolder getParent() {
+			return mParent;
+		}
+
+//================================================================================
+// ワーカースレッド上での処理
+//================================================================================
+		/**
+		 * 実際の描画処理
+		 */
+		protected void handleDraw() {
+			if ((mMasterSurface == null) || (!mMasterSurface.isValid())) {
+				Log.e(TAG, "checkMasterSurface:invalid master surface");
+				offer(REQUEST_RECREATE_MASTER_SURFACE);
+				return;
+			}
+			if (mIsFirstFrameRendered) {
 				try {
-					mInputSurface.release();
+					makeCurrent();
+					handleUpdateTexture();
+				} catch (final Exception e) {
+					Log.e(TAG, "draw:thread id =" + Thread.currentThread().getId(), e);
+					offer(REQUEST_RECREATE_MASTER_SURFACE);
+					return;
+				}
+				mParent.notifyCapture();
+				preprocess();
+				handleDrawClients();
+				mParent.callOnFrameAvailable();
+			}
+			makeCurrent();
+			GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+			GLES20.glFlush();
+		}
+
+		protected void handleUpdateTexture() {
+			mMasterTexture.updateTexImage();
+			mMasterTexture.getTransformMatrix(mTexMatrix);
+		}
+		
+		protected abstract void preprocess();
+	
+		/**
+		 * 各Surfaceへ描画する
+		 */
+		protected void handleDrawClients() {
+			synchronized (mClients) {
+				final int n = mClients.size();
+				RendererSurfaceRec client;
+				for (int i = n - 1; i >= 0; i--) {
+					client = mClients.valueAt(i);
+					if ((client != null) && client.canDraw()) {
+						try {
+							onDrawClient(client, mTexId, mTexMatrix);
+						} catch (final Exception e) {
+							// removeSurfaceが呼ばれなかったかremoveSurfaceを呼ぶ前に破棄されてしまった
+							mClients.removeAt(i);
+							client.release();
+						}
+					}
+				}
+			}
+		}
+	
+		/**
+		 * Surface1つの描画処理
+		 * @param client
+		 * @param texId
+		 * @param texMatrix
+		 */
+		protected abstract void onDrawClient(
+			@NonNull final RendererSurfaceRec client,
+			final int texId, final float[] texMatrix);
+		
+		/**
+		 * 指定したIDの分配描画先Surfaceを追加する
+		 * @param id
+		 * @param surface
+		 */
+		protected void handleAddSurface(final int id,
+			final Object surface, final int maxFps) {
+
+//			if (DEBUG) Log.v(TAG, "handleAddSurface:id=" + id);
+			checkSurface();
+			synchronized (mClients) {
+				RendererSurfaceRec client = mClients.get(id);
+				if (client == null) {
+					try {
+						client = RendererSurfaceRec.newInstance(getEgl(), surface, maxFps);
+						setMirror(client, mMirror);
+						mClients.append(id, client);
+					} catch (final Exception e) {
+						Log.w(TAG, "invalid surface: surface=" + surface, e);
+					}
+				} else {
+					Log.w(TAG, "surface is already added: id=" + id);
+				}
+				mClients.notifyAll();
+			}
+		}
+	
+		/**
+		 * 指定したIDの分配描画先Surfaceを破棄する
+		 * @param id
+		 */
+		protected void handleRemoveSurface(final int id) {
+	//			if (DEBUG) Log.v(TAG, "handleRemoveSurface:id=" + id);
+			synchronized (mClients) {
+				final RendererSurfaceRec client = mClients.get(id);
+				if (client != null) {
+					mClients.remove(id);
+					if (client.isValid()) {
+						client.clear(0);	// XXX 黒で塗りつぶし, 色指定できるようにする?
+					}
+					client.release();
+				}
+				checkSurface();
+				mClients.notifyAll();
+			}
+		}
+				
+		/**
+		 * 念の為に分配描画先のSurfaceを全て破棄する
+		 */
+		protected void handleRemoveAll() {
+	//			if (DEBUG) Log.v(TAG, "handleRemoveAll:");
+			synchronized (mClients) {
+				final int n = mClients.size();
+				RendererSurfaceRec client;
+				for (int i = 0; i < n; i++) {
+					client = mClients.valueAt(i);
+					if (client != null) {
+						if (client.isValid()) {
+							client.clear(0);	// XXX 黒で塗りつぶし, 色指定できるようにする?
+						}
+						client.release();
+					}
+				}
+				mClients.clear();
+				mClients.notifyAll();
+			}
+	//			if (DEBUG) Log.v(TAG, "handleRemoveAll:finished");
+		}
+	
+		/**
+		 * 分配描画先のSurfaceが有効かどうかをチェックして無効なものは削除する
+		 */
+		protected void checkSurface() {
+	//			if (DEBUG) Log.v(TAG, "checkSurface");
+			synchronized (mClients) {
+				final int n = mClients.size();
+				for (int i = 0; i < n; i++) {
+					final RendererSurfaceRec client = mClients.valueAt(i);
+					if ((client != null) && !client.isValid()) {
+						final int id = mClients.keyAt(i);
+	//						if (DEBUG) Log.i(TAG, "checkSurface:found invalid surface:id=" + id);
+						mClients.valueAt(i).release();
+						mClients.remove(id);
+					}
+				}
+			}
+	//			if (DEBUG) Log.v(TAG, "checkSurface:finished");
+		}
+	
+		/**
+		 * 指定したIDの分配描画用Surfaceを指定した色で塗りつぶす
+		 * @param id
+		 * @param color
+		 */
+		protected void handleClear(final int id, final int color) {
+			synchronized (mClients) {
+				final RendererSurfaceRec client = mClients.get(id);
+				if ((client != null) && client.isValid()) {
+					client.clear(color);
+				}
+			}
+		}
+		
+		/**
+		 * 分配描画用Surface全てを指定した色で塗りつぶす
+		 * @param color
+		 */
+		protected void handleClearAll(final int color) {
+			synchronized (mClients) {
+				final int n = mClients.size();
+				for (int i = 0; i < n; i++) {
+					final RendererSurfaceRec client = mClients.valueAt(i);
+					if ((client != null) && client.isValid()) {
+						client.clear(color);
+					}
+				}
+			}
+		}
+	
+		/**
+		 * モデルビュー変換行列を適用する
+		 * @param id
+		 * @param offset
+		 * @param mvp
+		 */
+		protected void handleSetMvp(final int id,
+			final int offset, final Object mvp) {
+
+			if ((mvp instanceof float[]) && (((float[]) mvp).length >= 16 + offset)) {
+				final float[] array = (float[])mvp;
+				synchronized (mClients) {
+					final RendererSurfaceRec client = mClients.get(id);
+					if ((client != null) && client.isValid()) {
+						System.arraycopy(array, offset, client.mMvpMatrix, 0, 16);
+					}
+				}
+			}
+		}
+		
+		/**
+		 * マスターSurfaceを再生成する
+		 */
+		@SuppressLint("NewApi")
+		protected void handleReCreateMasterSurface() {
+			makeCurrent();
+			handleReleaseMasterSurface();
+			makeCurrent();
+			mTexId = GLHelper.initTex(GL_TEXTURE_EXTERNAL_OES, GLES20.GL_NEAREST);
+			mMasterTexture = new SurfaceTexture(mTexId);
+			mMasterSurface = new Surface(mMasterTexture);
+			if (BuildCheck.isAndroid4_1()) {
+				mMasterTexture.setDefaultBufferSize(mVideoWidth, mVideoHeight);
+			}
+			mMasterTexture.setOnFrameAvailableListener(mOnFrameAvailableListener);
+			mParent.callOnCreate(mMasterSurface);
+		}
+	
+		/**
+		 * マスターSurfaceを破棄する
+		 */
+		protected void handleReleaseMasterSurface() {
+			if (mMasterSurface != null) {
+				try {
+					mMasterSurface.release();
 				} catch (final Exception e) {
 					Log.w(TAG, e);
 				}
-				mInputSurface = null;
+				mMasterSurface = null;
 				mParent.callOnDestroy();
 			}
-			if (mInputTexture != null) {
+			if (mMasterTexture != null) {
 				try {
-					mInputTexture.release();
+					mMasterTexture.release();
 				} catch (final Exception e) {
 					Log.w(TAG, e);
 				}
-				mInputTexture = null;
+				mMasterTexture = null;
 			}
 			if (mTexId != 0) {
-				if (isGLES3()) {
-					com.serenegiant.glutils.es3.GLHelper.deleteTex(mTexId);
-				} else {
-					com.serenegiant.glutils.es2.GLHelper.deleteTex(mTexId);
-				}
+				GLHelper.deleteTex(mTexId);
 				mTexId = 0;
 			}
 		}
-
-		@Override
-		protected void handleUpdateTexture() {
-			mInputTexture.updateTexImage();
-			mInputTexture.getTransformMatrix(mTexMatrix);
-		}
-
+	
 		/**
 		 * マスター映像サイズをリサイズ
 		 * @param width
 		 * @param height
 		 */
 		@SuppressLint("NewApi")
-		@WorkerThread
 		protected void handleResize(final int width, final int height) {
-			if (DEBUG) Log.v(TAG, String.format("handleResize:(%d,%d)", width, height));
-			super.handleResize(width, height);
+//			if (DEBUG) Log.v(TAG, String.format("handleResize:(%d,%d)", width, height));
+			mVideoWidth = width;
+			mVideoHeight = height;
 			if (BuildCheck.isAndroid4_1()) {
-				mInputTexture.setDefaultBufferSize(width, height);
+				mMasterTexture.setDefaultBufferSize(mVideoWidth, mVideoHeight);
 			}
 		}
-
-		@NonNull
-		public AbstractRendererHolder getParent() {
-			return mParent;
-		}
-
+	
 		/**
-		 * マスター映像取得用のSurfaceを取得
-		 * @return
+		 * ミラーモードをセット
+		 * @param mirror
 		 */
-		public Surface getSurface() {
-//			if (DEBUG) Log.v(TAG, "getSurface:" + mInputSurface);
-			checkMasterSurface();
-			return mInputSurface;
-		}
-
-		/**
-		 * 映像受け取り用のSurfaceTextureを取得
-		 * @return
-		 */
-		public SurfaceTexture getSurfaceTexture() {
-//		if (DEBUG) Log.v(TAG, "getSurfaceTexture:" + mInputTexture);
-			checkMasterSurface();
-			return mInputTexture;
-		}
-
-		/**
-		 * マスター用の映像を受け取るためのマスターをチェックして無効なら再生成要求する
-		 */
-		public void reset() {
-			checkMasterSurface();
-		}
-
-		/**
-		 * 分配描画用のマスターSurfaceが有効かどうかをチェックして無効なら再生成する
-		 */
-		public void checkMasterSurface() {
-			checkFinished();
-			if ((mInputSurface == null) || (!mInputSurface.isValid())) {
-				Log.d(TAG, "checkMasterSurface:invalid master surface");
-				requestRecreateMasterSurface();
+		protected void handleMirror(final int mirror) {
+			mMirror = mirror;
+			synchronized (mClients) {
+				final int n = mClients.size();
+				for (int i = 0; i < n; i++) {
+					final RendererSurfaceRec client = mClients.valueAt(i);
+					if (client != null) {
+						setMirror(client, mirror);
+					}
+				}
 			}
 		}
-
+	
 		/**
-		 * レンダリングスレッド上で指定したタスクを実行する
-		 * @param task
+		 * handleMirrorの下請け
+		 * @param client
+		 * @param mirror
 		 */
-		public void queueEvent(@NonNull final Runnable task) {
-			mEglTask.queueEvent(task);
+		protected void setMirror(final RendererSurfaceRec client, final int mirror) {
+			RendererHolder.setMirror(client.mMvpMatrix, mirror);
 		}
-
+	
+		protected void handleRotate(final int id, final int degree) {
+			// FIXME 未実装
+		}
+		
 		/**
 		 * TextureSurfaceで映像を受け取った際のコールバックリスナー
-		 * (SurfaceTexture#OnFrameAvailableListenerインターフェースの実装)
 		 */
-		@Override
-		public void onFrameAvailable(final SurfaceTexture surfaceTexture) {
-			requestFrame();
+		protected final SurfaceTexture.OnFrameAvailableListener
+			mOnFrameAvailableListener = new SurfaceTexture.OnFrameAvailableListener() {
+
+			@Override
+			public void onFrameAvailable(final SurfaceTexture surfaceTexture) {
+				removeRequest(REQUEST_DRAW);
+				mIsFirstFrameRendered = true;
+				offer(REQUEST_DRAW);
+			}
+		};
+
+	}
+	
+	/**
+	 * ワーカースレッド上でOpenGL|ESを用いてマスター映像を分配描画するためのインナークラス
+	 */
+	protected abstract static class RendererTask extends BaseRendererTask {
+
+		protected GLDrawer2D mDrawer;
+
+		public RendererTask(@NonNull final AbstractRendererHolder parent,
+			final int width, final int height) {
+
+			super(parent, width, height);
 		}
 
-	}	// BaseRendererTask
+		public RendererTask(@NonNull final AbstractRendererHolder parent,
+			final int width, final int height,
+			final int maxClientVersion,
+			final EGLBase.IContext sharedContext, final int flags) {
+			
+			super(parent, width, height, maxClientVersion, sharedContext, flags);
+		}
+
+		@Override
+		protected void internalOnStart() {
+			mDrawer = new GLDrawer2D(true);
+		}
+		
+		@Override
+		protected void internalOnStop() {
+			if (mDrawer != null) {
+				mDrawer.release();
+				mDrawer = null;
+			}
+		}
+
+		@Override
+		protected void preprocess() {
+		}
+		
+		@Override
+		protected void onDrawClient(@NonNull final RendererSurfaceRec client,
+			final int texId, final float[] texMatrix) {
+
+			client.draw(mDrawer, texId, texMatrix);
+		}
+	}
 
 //--------------------------------------------------------------------------------
 
@@ -816,10 +1251,10 @@ public abstract class AbstractRendererHolder implements IRendererHolder {
 	 * 静止画を非同期でキャプチャするためのRunnable
 	 */
 	private final Runnable mCaptureTask = new Runnable() {
-		private GLContext mContext;
-		private ISurface captureSurface;
-		private GLDrawer2D drawer;
-		private final float[] mMvpMatrix = new float[16];
+    	EGLBase eglBase;
+    	EGLBase.IEglSurface captureSurface;
+    	GLDrawer2D drawer;
+		final float[] mMvpMatrix = new float[16];
 
     	@Override
 		public void run() {
@@ -837,7 +1272,7 @@ public abstract class AbstractRendererHolder implements IRendererHolder {
 			if (isRunning) {
 				init();
 				try {
-					if (mContext.isOES3()) {
+					if ((eglBase.getGlVersion() > 2) && (BuildCheck.isAndroid4_3())) {
 						captureLoopGLES3();
 					} else {
 						captureLoopGLES2();
@@ -853,12 +1288,12 @@ public abstract class AbstractRendererHolder implements IRendererHolder {
 		}
 
 		private final void init() {
-			mContext = new GLContext(mRendererTask.getGLContext());
-			mContext.initialize();
-	    	captureSurface = mContext.getEgl().createOffscreen(
+	    	eglBase = EGLBase.createFrom(3,
+	    		mRendererTask.getContext(), false, 0, false);
+	    	captureSurface = eglBase.createOffscreen(
 	    		mRendererTask.width(), mRendererTask.height());
 			Matrix.setIdentityM(mMvpMatrix, 0);
-			drawer = GLDrawer2D.create(mContext.isOES3(), true);
+	    	drawer = new GLDrawer2D(true);
 			setupCaptureDrawer(drawer);
 		}
 
@@ -887,7 +1322,6 @@ public abstract class AbstractRendererHolder implements IRendererHolder {
 						}
 					}
 					if (DEBUG) Log.v(TAG, "#captureLoopGLES2:start capture");
-					boolean success = false;
 					if ((buf == null)
 						|| (width != mRendererTask.width())
 						|| (height != mRendererTask.height())) {
@@ -900,10 +1334,10 @@ public abstract class AbstractRendererHolder implements IRendererHolder {
 				    		captureSurface.release();
 				    		captureSurface = null;
 				    	}
-				    	captureSurface = mContext.getEgl().createOffscreen(width, height);
+				    	captureSurface = eglBase.createOffscreen(width, height);
 					}
 					if (isRunning && (width > 0) && (height > 0)) {
-						GLUtils.setMirror(mMvpMatrix, mRendererTask.mirror());
+						setMirror(mMvpMatrix, mRendererTask.mirror());
 						mMvpMatrix[5] *= -1.0f;	// flip up-side down
 						drawer.setMvpMatrix(mMvpMatrix, 0);
 						captureSurface.makeCurrent();
@@ -924,7 +1358,6 @@ public abstract class AbstractRendererHolder implements IRendererHolder {
 					            bmp.compress(compressFormat, captureCompression, mCaptureStream);
 					            bmp.recycle();
 								mCaptureStream.flush();
-								success = true;
 					        } finally {
 					            mCaptureStream.close();
 					        }
@@ -936,14 +1369,6 @@ public abstract class AbstractRendererHolder implements IRendererHolder {
 					}
 					if (DEBUG) Log.i(TAG, "#captureLoopGLES2:静止画撮影終了");
 					mCaptureStream = null;
-					if (mOnCapturedListener != null) {
-						try {
-							mOnCapturedListener.onCaptured(AbstractRendererHolder.this, success);
-						} catch (final Exception e) {
-							if (DEBUG) Log.w(TAG, e);
-						}
-					}
-					mOnCapturedListener = null;
 					mSync.notifyAll();
 				}	// end of synchronized (mSync)
 			}	// end of for (; isRunning ;)
@@ -978,7 +1403,6 @@ public abstract class AbstractRendererHolder implements IRendererHolder {
 						}
 					}
 					if (DEBUG) Log.v(TAG, "#captureLoopGLES3:start capture");
-					boolean success = false;
 					if ((buf == null)
 						|| (width != mRendererTask.width())
 						|| (height != mRendererTask.height())) {
@@ -991,10 +1415,10 @@ public abstract class AbstractRendererHolder implements IRendererHolder {
 				    		captureSurface.release();
 				    		captureSurface = null;
 				    	}
-				    	captureSurface = mContext.getEgl().createOffscreen(width, height);
+				    	captureSurface = eglBase.createOffscreen(width, height);
 					}
 					if (isRunning && (width > 0) && (height > 0)) {
-						GLUtils.setMirror(mMvpMatrix, mRendererTask.mirror());
+						setMirror(mMvpMatrix, mRendererTask.mirror());
 						mMvpMatrix[5] *= -1.0f;	// flip up-side down
 						drawer.setMvpMatrix(mMvpMatrix, 0);
 						captureSurface.makeCurrent();
@@ -1016,7 +1440,6 @@ public abstract class AbstractRendererHolder implements IRendererHolder {
 					            bmp.compress(compressFormat, captureCompression, mCaptureStream);
 					            bmp.recycle();
 								mCaptureStream.flush();
-								success = true;
 					        } finally {
 					            mCaptureStream.close();
 					        }
@@ -1028,14 +1451,6 @@ public abstract class AbstractRendererHolder implements IRendererHolder {
 					}
 					if (DEBUG) Log.i(TAG, "#captureLoopGLES3:静止画撮影終了");
 					mCaptureStream = null;
-					if (mOnCapturedListener != null) {
-						try {
-							mOnCapturedListener.onCaptured(AbstractRendererHolder.this, success);
-						} catch (final Exception e) {
-							if (DEBUG) Log.w(TAG, e);
-						}
-					}
-					mOnCapturedListener = null;
 					mSync.notifyAll();
 				}	// end of synchronized (mSync)
 			}	// end of for (; isRunning ;)
@@ -1054,11 +1469,55 @@ public abstract class AbstractRendererHolder implements IRendererHolder {
 				drawer.release();
 				drawer = null;
 			}
-			if (mContext != null) {
-				mContext.release();
-				mContext = null;
+			if (eglBase != null) {
+				eglBase.release();
+				eglBase = null;
 			}
 		}
-	};	// mCaptureTask
+	};
 
+//================================================================================
+	protected static void setMirror(final float[] mvp, final int mirror) {
+		switch (mirror) {
+		case MIRROR_NORMAL:
+			mvp[0] = Math.abs(mvp[0]);
+			mvp[5] = Math.abs(mvp[5]);
+			break;
+		case MIRROR_HORIZONTAL:
+			mvp[0] = -Math.abs(mvp[0]);	// flip left-right
+			mvp[5] = Math.abs(mvp[5]);
+			break;
+		case MIRROR_VERTICAL:
+			mvp[0] = Math.abs(mvp[0]);
+			mvp[5] = -Math.abs(mvp[5]);	// flip up-side down
+			break;
+		case MIRROR_BOTH:
+			mvp[0] = -Math.abs(mvp[0]);	// flip left-right
+			mvp[5] = -Math.abs(mvp[5]);	// flip up-side down
+			break;
+		}
+	}
+	
+	/**
+	 * 現在のモデルビュー変換行列をxy平面で指定した角度回転させる
+	 * @param mvp
+	 * @param degrees
+	 */
+	protected static void rotate(final float[] mvp, final int degrees) {
+		if ((degrees % 180) != 0) {
+			Matrix.rotateM(mvp, 0, degrees, 0.0f, 0.0f, 1.0f);
+		}
+	}
+	
+	/**
+	 * モデルビュー変換行列にxy平面で指定した角度回転させた回転行列をセットする
+	 * @param mvp
+	 * @param degrees
+	 */
+	protected static void setRotation(final float[] mvp, final int degrees) {
+		Matrix.setIdentityM(mvp, 0);
+		if ((degrees % 180) != 0) {
+			Matrix.rotateM(mvp, 0, degrees, 0.0f, 0.0f, 1.0f);
+		}
+	}
 }

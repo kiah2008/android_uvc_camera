@@ -3,7 +3,7 @@ package com.serenegiant.net;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,7 +37,8 @@ import java.util.Enumeration;
 public class UdpSocket {
 	private DatagramChannel channel;
 	private final InetSocketAddress broadcast;
-	private final String localAddress;
+	private SocketAddress sender;
+	private String localAddress;
 	private String remoteAddress;
 	private int remotePort;
 
@@ -259,7 +260,7 @@ public class UdpSocket {
 			throw new IllegalStateException("already released");
 		}
 		final int read = buffer.remaining();
-		final SocketAddress sender = channel.receive(buffer);
+		sender = channel.receive(buffer);
 		if (sender == null) {
 			return -1;
 		}

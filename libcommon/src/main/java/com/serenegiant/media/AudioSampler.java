@@ -3,7 +3,7 @@ package com.serenegiant.media;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -173,7 +173,7 @@ LOOP:							for ( ; mIsCapturing ;) {
 											}
 										}
 										// try to read audio data
-										buffer = data.get();
+										buffer = data.mBuffer;
 										buffer.clear();
 										// 1回に読み込むのはSAMPLES_PER_FRAMEバイト
 										try {
@@ -189,9 +189,8 @@ LOOP:							for ( ; mIsCapturing ;) {
 										if (readBytes > 0) {
 											// 正常に読み込めた時
 											err_count = 0;
-											// FIXME ここはMediaDataのセッターで一括でセットするように変更する
-											data.presentationTimeUs(getInputPTSUs())
-												.size(readBytes);
+											data.presentationTimeUs = getInputPTSUs();
+											data.size = readBytes;
 											buffer.position(readBytes);
 											buffer.flip();
 											// 音声データキューに追加する

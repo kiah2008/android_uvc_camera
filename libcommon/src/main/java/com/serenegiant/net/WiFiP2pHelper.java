@@ -3,7 +3,7 @@ package com.serenegiant.net;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ package com.serenegiant.net;
  *  limitations under the License.
 */
 
-import android.Manifest;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -31,11 +30,7 @@ import android.net.wifi.p2p.WifiP2pDeviceList;
 import android.net.wifi.p2p.WifiP2pInfo;
 import android.net.wifi.p2p.WifiP2pManager;
 import androidx.annotation.NonNull;
-import androidx.annotation.RequiresPermission;
-
 import android.util.Log;
-
-import com.serenegiant.system.ContextUtils;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -101,7 +96,7 @@ public class WiFiP2pHelper {
 	 */
 	private WiFiP2pHelper(@NonNull final Context context) {
 		mWeakContext = new WeakReference<Context>(context);
-		mWifiP2pManager = ContextUtils.requireSystemService(context, WifiP2pManager.class);
+		mWifiP2pManager = (WifiP2pManager) context.getSystemService(Context.WIFI_P2P_SERVICE);
 	}
 	
 	/**
@@ -162,7 +157,6 @@ public class WiFiP2pHelper {
 	 * WiFi Directに対応した機器探索を開始
 	 * @throws IllegalStateException
 	 */
-	@RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
 	public synchronized void startDiscovery() throws IllegalStateException {
 		if (DEBUG) Log.v(TAG, "startDiscovery:");
 		if (mChannel != null) {
@@ -184,7 +178,6 @@ public class WiFiP2pHelper {
 	 * 指定したMACアドレスの機器へ接続を試みる
 	 * @param remoteMacAddress
 	 */
-	@RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
 	public void connect(@NonNull final String remoteMacAddress) {
 		if (DEBUG) Log.v(TAG, "connect:remoteMacAddress=" + remoteMacAddress);
 		final WifiP2pConfig config = new WifiP2pConfig();
@@ -197,7 +190,6 @@ public class WiFiP2pHelper {
 	 * 指定した機器へ接続を試みる
 	 * @param device
 	 */
-	@RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
 	public void connect(@NonNull final WifiP2pDevice device) {
 		if (DEBUG) Log.v(TAG, "connect:device=" + device);
 		final WifiP2pConfig config = new WifiP2pConfig();
@@ -211,7 +203,6 @@ public class WiFiP2pHelper {
 	 * @param config
 	 * @throws IllegalStateException
 	 */
-	@RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
 	public void connect(@NonNull final WifiP2pConfig config) throws IllegalStateException {
 		if (DEBUG) Log.v(TAG, "connect:config=" + config);
 		if (mChannel != null) {
@@ -463,12 +454,9 @@ public class WiFiP2pHelper {
 	/** WiFi direct関係のブロードキャストを受け取るためのBroadcastReceiver */
 	private static class WiFiDirectBroadcastReceiver extends BroadcastReceiver {
 	
-	    @NonNull
-	    private final WifiP2pManager mManager;
-	    @NonNull
-	    private final WifiP2pManager.Channel mChannel;
-	    @NonNull
-	    private final WiFiP2pHelper mParent;
+	    @NonNull private WifiP2pManager mManager;
+	    @NonNull private WifiP2pManager.Channel mChannel;
+	    @NonNull private WiFiP2pHelper mParent;
 	
 	    /**
 	     * @param manager WifiP2pManager system service
@@ -485,7 +473,6 @@ public class WiFiP2pHelper {
 	        mParent = parent;
 	    }
 	
-		@RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
 	    @Override
 	    public void onReceive(final Context context, final Intent intent) {
 	        final String action = (intent != null) ? intent.getAction() : null;

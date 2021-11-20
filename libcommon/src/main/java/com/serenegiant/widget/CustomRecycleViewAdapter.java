@@ -3,7 +3,7 @@ package com.serenegiant.widget;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,12 +38,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-/**
- * アイテムのクリック・ロングクリックイベントのコールバック処理を追加したRecyclerView.Adapter実装
- * ArrayListRecyclerViewAdapterを使うこと
- * @param <T>
- */
-@Deprecated
+
 public abstract class CustomRecycleViewAdapter<T>
 	extends RecyclerView.Adapter<CustomRecycleViewAdapter.ViewHolder<T>> {
 

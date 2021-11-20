@@ -3,7 +3,7 @@ package com.serenegiant.media;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,10 +26,10 @@ public interface Encoder {
 	public abstract void stop();
 	public abstract void release();
 	public abstract void signalEndOfInputStream();
+	public abstract void encode(final ByteBuffer buffer);
 	public abstract void encode(final ByteBuffer buffer, final int length, final long presentationTimeUs);
 	public abstract void frameAvailableSoon();
 	public abstract boolean isCapturing();
-	@Deprecated
 	public abstract String getOutputPath();
 	@Deprecated
 	public abstract boolean isAudio();

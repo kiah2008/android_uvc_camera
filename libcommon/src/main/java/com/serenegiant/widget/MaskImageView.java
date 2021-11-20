@@ -3,7 +3,7 @@ package com.serenegiant.widget;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ package com.serenegiant.widget;
  *  limitations under the License.
 */
 
-import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.BlurMaskFilter;
 import android.graphics.Canvas;
@@ -30,8 +29,6 @@ import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 import androidx.appcompat.widget.AppCompatImageView;
 import android.util.AttributeSet;
-
-import com.serenegiant.system.BuildCheck;
 
 /**
  * Drawableで指定したMaskの不透過部分に対応するイメージを表示するImageView
@@ -96,7 +93,6 @@ public class MaskImageView extends AppCompatImageView {
 		}
     }
 
-	@SuppressLint("NewApi")
 	@Override
 	protected synchronized void onDraw(final Canvas canvas) {
 		final int saveCount = canvas.saveLayer(mViewBoundsF, mCopyPaint,
@@ -104,11 +100,7 @@ public class MaskImageView extends AppCompatImageView {
 		try {
 			if (mMaskDrawable != null) {
 				mMaskDrawable.draw(canvas);
-				if (BuildCheck.isLollipop()) {
-					canvas.saveLayer(mViewBoundsF, mMaskedPaint);
-				} else {
-					canvas.saveLayer(mViewBoundsF, mMaskedPaint, Canvas.ALL_SAVE_FLAG);
-				}
+				canvas.saveLayer(mViewBoundsF, mMaskedPaint, 0);
 			}
 			super.onDraw(canvas);
 		} finally {

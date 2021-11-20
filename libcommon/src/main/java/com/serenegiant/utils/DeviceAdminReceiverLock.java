@@ -3,7 +3,7 @@ package com.serenegiant.utils;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,13 +22,10 @@ import android.app.Activity;
 import android.app.admin.DeviceAdminReceiver;
 import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
-
-import com.serenegiant.system.ContextUtils;
-
 import androidx.annotation.NonNull;
 
-@Deprecated
 public class DeviceAdminReceiverLock extends DeviceAdminReceiver {
 
 	public static final String EXTRA_REQUEST_FINISH = "EXTRA_REQUEST_FINISH";
@@ -50,7 +47,7 @@ public class DeviceAdminReceiverLock extends DeviceAdminReceiver {
 	 */
 	private static boolean checkScreenLock(@NonNull final Activity activity, final boolean finish) {
 		final ComponentName cn = new ComponentName(activity, DeviceAdminReceiverLock.class);
-		final DevicePolicyManager dpm = ContextUtils.requireSystemService(activity, DevicePolicyManager.class);
+		final DevicePolicyManager dpm = (DevicePolicyManager)activity.getSystemService(Context.DEVICE_POLICY_SERVICE);
 		if (dpm.isAdminActive(cn)){
 			// デバイス管理者が有効ならスクリーンをロック
 			dpm.lockNow();

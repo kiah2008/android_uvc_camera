@@ -3,7 +3,7 @@ package com.serenegiant.graphics;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,19 +24,14 @@ import android.graphics.ColorFilter;
 import android.graphics.DrawFilter;
 import android.graphics.Paint;
 import android.graphics.PaintFlagsDrawFilter;
-import android.graphics.PixelFormat;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
-
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 
 public class ShaderDrawable extends Drawable {
 
 	private final Paint mPaint;
     private final DrawFilter mDrawFilter;
-    @Nullable
 	private Shader mShader;
 
 	public ShaderDrawable() {
@@ -61,7 +56,7 @@ public class ShaderDrawable extends Drawable {
 	}
 
 	@Override
-	public void draw(@NonNull final Canvas canvas) {
+	public void draw(final Canvas canvas) {
 		if (mShader != null) {
 			final int count = canvas.save();
 			final DrawFilter org = canvas.getDrawFilter();
@@ -91,10 +86,10 @@ public class ShaderDrawable extends Drawable {
 
 	@Override
 	public int getOpacity() {
-		return PixelFormat.UNKNOWN;
+		return 0;
 	}
 
-	public void setBounds(@NonNull final RectF bounds) {
+	public void setBounds(final RectF bounds) {
 		super.setBounds((int)bounds.left, (int)bounds.top, (int)bounds.right, (int)bounds.bottom);
 	}
 
@@ -102,14 +97,13 @@ public class ShaderDrawable extends Drawable {
 		super.setBounds((int)left, (int)top, (int)right, (int)bottom);
 	}
 
-	public Shader setShader(@Nullable final Shader shader) {
+	public Shader setShader(final Shader shader) {
 		if (mShader != shader) {
 			mShader = shader;
 		}
 		return shader;
 	}
 
-	@Nullable
 	public Shader getShader() {
 		return mShader;
 	}

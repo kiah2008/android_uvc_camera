@@ -3,7 +3,7 @@ package com.serenegiant.glutils;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,19 +43,6 @@ public interface IRendererHolder extends IRendererCommon {
 	@IntDef({OUTPUT_FORMAT_JPEG, OUTPUT_FORMAT_PNG, OUTPUT_FORMAT_WEBP})
 	@Retention(RetentionPolicy.SOURCE)
 	public @interface StillCaptureFormat {}
-
-	/**
-	 * IRendererHolderからのコールバックリスナー
-	 */
-	public interface RenderHolderCallback {
-		public void onCreate(Surface surface);
-		public void onFrameAvailable();
-		public void onDestroy();
-	}
-
-	public interface OnCapturedListener {
-		public void onCaptured(@NonNull final IRendererHolder rendererHolder, final boolean success);
-	}
 
 	/**
 	 * 実行中かどうか
@@ -100,7 +87,7 @@ public interface IRendererHolder extends IRendererCommon {
 	 * このメソッドは指定したSurfaceが追加されるか
 	 * interruptされるまでカレントスレッドをブロックする。
 	 * @param id 普通は#hashCodeを使う
-	 * @param surface Surface/SurfaceHolder/SurfaceTexture/SurfaceView/TextureWrapperのいずれか
+	 * @param surface, should be one of Surface, SurfaceTexture or SurfaceHolder
 	 * @param isRecordable
 	 */
 	public void addSurface(final int id, final Object surface,
@@ -112,7 +99,7 @@ public interface IRendererHolder extends IRendererCommon {
 	 * このメソッドは指定したSurfaceが追加されるか
 	 * interruptされるまでカレントスレッドをブロックする。
 	 * @param id 普通は#hashCodeを使う
-	 * @param surface Surface/SurfaceHolder/SurfaceTexture/SurfaceView/TextureWrapperのいずれか
+	 * @param surface, should be one of Surface, SurfaceTexture or SurfaceHolder
 	 * @param isRecordable
 	 * @param maxFps 0以下なら制限しない
 	 */
@@ -185,12 +172,31 @@ public interface IRendererHolder extends IRendererCommon {
 
 	/**
 	 * 静止画を撮影する
+	 * 撮影完了を待機しない
+	 * @param path
+	 */
+	@Deprecated
+	public void captureStillAsync(@NonNull final String path)
+		throws FileNotFoundException, IllegalStateException;
+	
+	/**
+	 * 静止画を撮影する
+	 * 撮影完了を待機しない
+	 * @param path
+	 * @param captureCompression JPEGの圧縮率, pngの時は無視
+	 */
+	@Deprecated
+	public void captureStillAsync(@NonNull final String path,
+		@IntRange(from = 1L,to = 99L) final int captureCompression)
+			throws FileNotFoundException, IllegalStateException;
+
+	/**
+	 * 静止画を撮影する
 	 * 撮影完了を待機する
 	 * @param path
 	 */
-	public void captureStill(@NonNull final String path,
-		@Nullable final OnCapturedListener listener)
-			throws FileNotFoundException, IllegalStateException;
+	public void captureStill(@NonNull final String path)
+		throws FileNotFoundException, IllegalStateException;
 
 	/**
 	 * 静止画を撮影する
@@ -199,8 +205,7 @@ public interface IRendererHolder extends IRendererCommon {
 	 * @param captureCompression JPEGの圧縮率, pngの時は無視
 	 */
 	public void captureStill(@NonNull final String path,
-		@IntRange(from = 1L,to = 99L) final int captureCompression,
-		@Nullable final OnCapturedListener listener)
+		@IntRange(from = 1L,to = 99L) final int captureCompression)
 			throws FileNotFoundException, IllegalStateException;
 
 	/**
@@ -212,13 +217,6 @@ public interface IRendererHolder extends IRendererCommon {
 	 */
 	public void captureStill(@NonNull final OutputStream out,
 		@StillCaptureFormat final int stillCaptureFormat,
-		@IntRange(from = 1L,to = 99L) final int captureCompression,
-		@Nullable final OnCapturedListener listener)
+		@IntRange(from = 1L,to = 99L) final int captureCompression)
 			throws IllegalStateException;
-
-	/**
-	 * レンダリングスレッド上で指定したタスクを実行する
-	 * @param task
-	 */
-	public void queueEvent(@NonNull final Runnable task);
 }

@@ -1,0 +1,16 @@
+set ( PackageName @PROJECT_NAME@ )
+set ( LIB_NAME @PROJECT_NAME@ )
+
+message ( STATUS "PackageName = ${PackageName}" )
+
+@PACKAGE_INIT@
+
+include ( ${CMAKE_CURRENT_LIST_DIR}/${PackageName}Targets.cmake )
+
+set_and_check ( ${PackageName}_INCLUDE_DIR "@PACKAGE_INCLUDE_INSTALL_DIR@" )
+
+set ( ${PackageName}_LIBRARIES )
+
+list ( APPEND ${PackageName}_LIBRARIES CoreUtils::${LIB_NAME} )
+
+check_required_components(${PackageName})

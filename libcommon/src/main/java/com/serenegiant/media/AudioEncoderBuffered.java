@@ -3,7 +3,7 @@ package com.serenegiant.media;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -81,15 +81,13 @@ public class AudioEncoderBuffered extends AbstractAudioEncoder {
 		try {
 			result = mPool.poll(20, TimeUnit.MILLISECONDS);
 		} catch (final InterruptedException e) {
-			// ignore
 		}
 		if ((result == null) && (mBufferNum < MAX_POOL_SIZE) ) {
 			result = new MediaData(mBufferSize);
 			mBufferNum++;
 		}
-		if (result != null) {
-			result.clear();
-		}
+		if (result != null)
+			result.size = 0;
 		return result;
 	}
 
@@ -132,7 +130,7 @@ public class AudioEncoderBuffered extends AbstractAudioEncoder {
 		                	for ( ; ; ) {
 		                		if (!mIsCapturing || mRequestStop || mIsEOS) break;
 		                		data = obtain();
-		                		buffer = data.get();
+		                		buffer = data.mBuffer;
 		                		buffer.clear();
 		                		try {
 		                			readBytes = audioRecord.read(buffer, SAMPLES_PER_FRAME);
@@ -143,9 +141,8 @@ public class AudioEncoderBuffered extends AbstractAudioEncoder {
 								if (readBytes > 0) {
 									// 内蔵マイクからの音声入力をエンコーダーにセット
 									err_count = 0;
-									// FIXME ここはMediaDataのセッターで一括でセットするように変更する
-									data.presentationTimeUs(getInputPTSUs())
-										.size(readBytes);
+									data.presentationTimeUs = getInputPTSUs();
+									data.size = readBytes;
 									buffer.position(readBytes);
 									buffer.flip();
 									mAudioQueue.offer(data);
@@ -220,8 +217,8 @@ public class AudioEncoderBuffered extends AbstractAudioEncoder {
 					break;
 				}
     			if (data != null) {
-    				if (data.size() > 0) {
-    					encode(data.get(), data.size(), data.presentationTimeUs());
+    				if (data.size > 0) {
+    					encode(data.mBuffer, data.size, data.presentationTimeUs);
     					frameAvailableSoon();
     					frame_count++;
     				}
@@ -241,7 +238,6 @@ public class AudioEncoderBuffered extends AbstractAudioEncoder {
 						try {
 							wait(50);
 						} catch (final InterruptedException e) {
-							// ignore
 						}
 					}
 		    	}

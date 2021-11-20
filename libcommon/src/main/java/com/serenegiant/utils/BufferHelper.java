@@ -3,7 +3,7 @@ package com.serenegiant.utils;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,39 +29,19 @@ import android.util.Log;
 
 public class BufferHelper {
 
-	private BufferHelper() {
-		// インスタンス化をエラーにするためにデフォルトコンストラクタをprivateに
-	}
-
-	private static final char[] HEX = {
+	private static final char HEX[] = {
 		'0', '1', '2', '3',
 		'4', '5', '6', '7',
 		'8', '9', 'a', 'b',
 		'c', 'd', 'e', 'f'};
 	
 	private static final int BUF_LEN = 256;
-
-	/**
-	 * ByteBufferの中身をlogCatへ出力する
-	 * @param tag
-	 * @param buffer
-	 * @param offset
-	 * @param size
-	 */
 	public static final void dump(final String tag,
 		final ByteBuffer buffer, final int offset, final int size) {
 
 		dump(tag, buffer, offset, size, false);
 	}
 
-	/**
-	 * ByteBufferの中身をlogCatへ出力する
-	 * @param tag
-	 * @param _buffer
-	 * @param offset
-	 * @param _size
-	 * @param findAnnexB
-	 */
 	public static final void dump(final String tag,
 		final ByteBuffer _buffer, final int offset, final int _size, final boolean findAnnexB) {
 
@@ -97,14 +77,6 @@ public class BufferHelper {
 		Log.i(tag, "dump:" + sb.toString());
 	}
 
-	/**
-	 * ByteBufferの中身をlogCatへ出力する
-	 * @param tag
-	 * @param buffer
-	 * @param offset
-	 * @param _size
-	 * @param findAnnexB
-	 */
 	public static final void dump(final String tag,
 		final byte[] buffer, final int offset, final int _size, final boolean findAnnexB) {
 
@@ -197,23 +169,18 @@ public class BufferHelper {
 		return -1;
 	}
 
+	private static final int SIZEOF_FLOAT = 4;
 	/**
-	 * float1つのサイズ[バイト]
+	 * Allocates a direct float buffer, and populates it with the float array data.
 	 */
-	public static final int SIZEOF_FLOAT_BYTES = Float.SIZE / 8;
-
-	/**
-	 * 引数のfloat配列と同じ長さのFloatBufferを生成して引数の値をセットする
-	 * @param coords
-	 * @return
-	 */
-	public static FloatBuffer createFloatBuffer(@NonNull final float[] coords) {
+	public static FloatBuffer createFloatBuffer(final float[] coords) {
 		// Allocate a direct ByteBuffer, using 4 bytes per float, and copy coords into it.
-		final FloatBuffer result
-			= ByteBuffer.allocateDirect(coords.length * SIZEOF_FLOAT_BYTES)
-				.order(ByteOrder.nativeOrder()).asFloatBuffer();
-		result.put(coords).flip();
-		return result;
+		final ByteBuffer bb = ByteBuffer.allocateDirect(coords.length * SIZEOF_FLOAT);
+		bb.order(ByteOrder.nativeOrder());
+		final FloatBuffer fb = bb.asFloatBuffer();
+		fb.put(coords);
+		fb.position(0);
+		return fb;
 	}
 	
 	/**
@@ -252,7 +219,7 @@ public class BufferHelper {
 		final int offset, final int len) {
 
 		final int n = (bytes != null) ? bytes.length : 0;
-		final int m = Math.min(n, offset + len);
+		final int m = n > offset + len ? offset + len : n;
 		final StringBuilder sb = new StringBuilder(n * 2 + 2);
 		for (int i = offset; i < m; i++) {
 			final byte b = bytes[i];

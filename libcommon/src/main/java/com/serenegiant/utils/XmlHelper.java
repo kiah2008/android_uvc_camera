@@ -3,7 +3,7 @@ package com.serenegiant.utils;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,10 +31,6 @@ import java.util.List;
  * XmlPullParserのヘルパークラス
  */
 public class XmlHelper {
-	private XmlHelper() {
-		// インスタンス化をエラーにするためにデフォルトコンストラクタをprivateに
-	}
-
 	/**
 	 * read as integer values with default value from xml(w/o exception throws)
 	 * resource integer id is also resolved into integer
@@ -127,9 +123,10 @@ public class XmlHelper {
 		if (!TextUtils.isEmpty(valueString)) {
 			final String[] values = valueString.split(",");
 			final List<Integer> list = new ArrayList<>();
+			final int n = values.length;
 			for (final String value: values) {
 				try {
-					list.add(ResourceHelper.get(context, value.trim(), 0));
+					list.add(ResourceHelper.get(context, parser.getAttributeValue(namespace, name), 0));
 				} catch (final Exception e) {
 					// ignore
 				}
@@ -155,9 +152,10 @@ public class XmlHelper {
 		if (!TextUtils.isEmpty(valueString)) {
 			final String[] values = valueString.split(",");
 			final List<Boolean> list = new ArrayList<>();
+			final int n = values.length;
 			for (final String value: values) {
 				try {
-					list.add(ResourceHelper.get(context, value.trim(), false));
+					list.add(ResourceHelper.get(context, parser.getAttributeValue(namespace, name), false));
 				} catch (final Exception e) {
 					// ignore
 				}

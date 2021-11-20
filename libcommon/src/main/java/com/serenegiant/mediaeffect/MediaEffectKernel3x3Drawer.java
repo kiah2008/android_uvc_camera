@@ -3,7 +3,7 @@ package com.serenegiant.mediaeffect;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ package com.serenegiant.mediaeffect;
 import android.opengl.GLES20;
 import androidx.annotation.NonNull;
 
-import com.serenegiant.glutils.es2.GLHelper;
+import com.serenegiant.glutils.GLHelper;
 
 import static com.serenegiant.glutils.ShaderConst.*;
 
@@ -52,7 +52,7 @@ public class MediaEffectKernel3x3Drawer extends MediaEffectColorAdjustDrawer {
 	private float mTexWidth;
 	private float mTexHeight;
 
-	private static final String FRAGMENT_SHADER_FILT3x3_BASE = SHADER_VERSION_ES2 +
+	private static final String FRAGMENT_SHADER_FILT3x3_BASE = SHADER_VERSION +
 		"%s" +
 		"#define KERNEL_SIZE3x3 " + KERNEL_SIZE + "\n" +
 		"precision highp float;\n" +
@@ -77,14 +77,14 @@ public class MediaEffectKernel3x3Drawer extends MediaEffectColorAdjustDrawer {
 	private static final String FRAGMENT_SHADER_FILT3x3
 		= String.format(FRAGMENT_SHADER_FILT3x3_BASE, HEADER_2D, SAMPLER_2D);
 	private static final String FRAGMENT_SHADER_EXT_FILT3x3
-		= String.format(FRAGMENT_SHADER_FILT3x3_BASE, HEADER_OES_ES2, SAMPLER_OES);
+		= String.format(FRAGMENT_SHADER_FILT3x3_BASE, HEADER_OES, SAMPLER_OES);
 
 	public MediaEffectKernel3x3Drawer(final String fss) {
-		this(false, VERTEX_SHADER_ES2, fss);
+		this(false, VERTEX_SHADER, fss);
 	}
 
 	public MediaEffectKernel3x3Drawer(final boolean isOES, final String fss) {
-		this(isOES, VERTEX_SHADER_ES2, fss);
+		this(isOES, VERTEX_SHADER, fss);
 	}
 
 	public MediaEffectKernel3x3Drawer(final boolean isOES, final String vss, final String fss) {

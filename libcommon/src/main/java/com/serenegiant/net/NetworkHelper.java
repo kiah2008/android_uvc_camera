@@ -3,7 +3,7 @@ package com.serenegiant.net;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,10 +28,6 @@ import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.util.Collections;
 
-/**
- * 代わりにNetworkUtilsを使うこと
- */
-@Deprecated
 public class NetworkHelper {
 	private static final String TAG = NetworkHelper.class.getSimpleName();
 

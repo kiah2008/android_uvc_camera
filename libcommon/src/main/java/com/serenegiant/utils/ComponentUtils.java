@@ -3,7 +3,7 @@ package com.serenegiant.utils;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,10 +24,6 @@ import android.content.pm.PackageManager;
 import androidx.annotation.NonNull;
 
 public class ComponentUtils {
-	private ComponentUtils() {
-		// インスタンス化をエラーにするためにデフォルトコンストラクタをprivateに
-	}
-
 	public static void disable(@NonNull final Context context, final Class<?> clazz) {
 		setComponentState(context, clazz, false);
 	}

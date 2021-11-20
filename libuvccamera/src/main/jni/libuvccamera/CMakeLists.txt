@@ -50,10 +50,9 @@ add_library(uvccamera SHARED ${SOURCES})
 ##  EXPORT_NAME uvccamera
 #)
 
-
 LIST(APPEND ALL_INCLUDE
         ${CMAKE_CURRENT_SOURCE_DIR}/
-        ../utils/
+        ${CMAKE_CURRENT_SOURCE_DIR}/../utils/
         ${CMAKE_CURRENT_SOURCE_DIR}/../rapidjson/include
         ${CMAKE_CURRENT_BINARY_DIR}
         ${LibUSB_SOURCE_DIR}/
@@ -61,6 +60,7 @@ LIST(APPEND ALL_INCLUDE
         ${libjpeg-turbo_BINARY_DIR}/
         ${libuvc_SOURCE_DIR}/include/
         ${libuvc_SOURCE_DIR}/include/libuvc/
+        ${coreutils_SOURCE_DIR}/include
         )
 
 include_directories(
@@ -73,6 +73,7 @@ target_link_libraries(uvccamera
         PRIVATE
         LibUVC::UVCShared
         LibUSB::LibUSB
+        coreutils
         jpeg
         jnigraphics
         log

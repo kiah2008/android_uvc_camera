@@ -3,7 +3,7 @@ package com.serenegiant.math;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -123,7 +123,7 @@ public abstract class BaseBounds implements Serializable {
 	}
 
 	public void rotate(final Vector angle) {
-		this.angle.set(angle.x, angle.y, angle.z);
+		angle.set(angle.x, angle.y, angle.z);
 	}
 
 	public void rotate(final float x, final float y, final float z) {

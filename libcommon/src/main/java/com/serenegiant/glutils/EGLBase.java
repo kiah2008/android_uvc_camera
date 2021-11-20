@@ -3,7 +3,7 @@ package com.serenegiant.glutils;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,72 +18,19 @@ package com.serenegiant.glutils;
  *  limitations under the License.
 */
 
-import android.annotation.SuppressLint;
-import android.annotation.TargetApi;
 import android.os.Build;
-
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 
 /**
  * EGLレンダリングコンテキストを生成＆使用するためのヘルパークラス
  */
-public abstract class EGLBase implements EGLConst {
-	/**
-	 * EGLConfig選択時のピクセルフォーマット
-	 * RGBA888
-	 */
-	public static final int EGL_CONFIG_RGBA = 0;
-	/**
-	 * EGLConfig選択時のピクセルフォーマット
-	 * RGB565
-	 */
-	public static final int EGL_CONFIG_RGB565 = 1;
+public abstract class EGLBase {
+	public static final Object EGL_LOCK = new Object();
 
-//--------------------------------------------------------------------------------
-// ヘルパーメソッド
-//--------------------------------------------------------------------------------
-	/**
-	 * EGLレンダリングコンテキストラップしてIContextを生成する
-	 * @param context
-	 * @return
-	 */
-	@SuppressLint("NewApi")
-	public static IContext wrapContext(@NonNull final Object context) {
-		if (context instanceof IContext) {
-			return (IContext)context;
-		} else if ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1)
-			&& (context instanceof android.opengl.EGLContext)) {
-
-			return EGLBase14.wrap((android.opengl.EGLContext)context);
-
-		} else if (context instanceof javax.microedition.khronos.egl.EGLContext) {
-			return EGLBase10.wrap((javax.microedition.khronos.egl.EGLContext)context);
-		} else if (context == null) {
-			return null;
-		} else {
-			throw new IllegalArgumentException("Unexpected shared context," + context);
-		}
-	}
-
-	/**
-	 * EGLConfigをラップしてIConfigを返す
-	 * @param eglConfig
-	 * @return
-	 */
-	@SuppressLint("NewApi")
-	public static IConfig wrapConfig(@NonNull final Object eglConfig) {
-		if ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1)
-			&& (eglConfig instanceof android.opengl.EGLConfig)) {
-
-			return EGLBase14.wrap((android.opengl.EGLConfig)eglConfig);
-
-		} else if (eglConfig instanceof javax.microedition.khronos.egl.EGLConfig) {
-			return EGLBase10.wrap((javax.microedition.khronos.egl.EGLConfig)eglConfig);
-		} else {
-			throw new IllegalArgumentException("Unexpected egl config," + eglConfig);
-		}
-	}
+	public static final int EGL_RECORDABLE_ANDROID = 0x3142;
+	public static final int EGL_CONTEXT_CLIENT_VERSION = 0x3098;
+	public static final int EGL_OPENGL_ES2_BIT = 4;
+	public static final int EGL_OPENGL_ES3_BIT_KHR = 0x0040;
+//	public static final int EGL_SWAP_BEHAVIOR_PRESERVED_BIT = 0x0400;
 
 	/**
 	 * EGL生成のヘルパーメソッド, 環境に応じてEGLBase10またはEGLBase14を生成する
@@ -93,10 +40,10 @@ public abstract class EGLBase implements EGLConst {
 	 * @param isRecordable
 	 * @return
 	 */
-	public static EGLBase createFrom(@Nullable final IContext sharedContext,
+	public static EGLBase createFrom(final IContext sharedContext,
 		final boolean withDepthBuffer, final boolean isRecordable) {
 
-		return createFrom(GLUtils.getSupportedGLVersion(), sharedContext, withDepthBuffer, 0, isRecordable);
+		return createFrom(3, sharedContext, withDepthBuffer, 0, isRecordable);
 	}
 
 	/**
@@ -108,10 +55,10 @@ public abstract class EGLBase implements EGLConst {
 	 * @param isRecordable
 	 * @return
 	 */
-	public static EGLBase createFrom(@Nullable final IContext sharedContext,
+	public static EGLBase createFrom(final IContext sharedContext,
 		final boolean withDepthBuffer, final int stencilBits, final boolean isRecordable) {
 
-		return createFrom(GLUtils.getSupportedGLVersion(), sharedContext,
+		return createFrom(3, sharedContext,
 			withDepthBuffer, stencilBits, isRecordable);
 	}
 
@@ -125,7 +72,7 @@ public abstract class EGLBase implements EGLConst {
 	 * @return
 	 */
 	public static EGLBase createFrom(final int maxClientVersion,
-		@Nullable final IContext sharedContext, final boolean withDepthBuffer,
+		final IContext sharedContext, final boolean withDepthBuffer,
 		final int stencilBits, final boolean isRecordable) {
 
 		if (isEGL14Supported() && ((sharedContext == null)
@@ -142,70 +89,6 @@ public abstract class EGLBase implements EGLConst {
 	}
 
 	/**
-	 * EGL生成のヘルパーメソッド
-	 * @param maxClientVersion
-	 * @param sharedContext
-	 * @param withDepthBuffer trueなら16ビットのデプスバッファ有り, falseならデプスバッファなし
-	 * @param stencilBits 0以下ならステンシルバッファなし
-	 * @param isRecordable
-	 * @return
-	 */
-	@SuppressLint("NewApi")
-	public static EGLBase createFrom(final int maxClientVersion,
-		@Nullable final Object sharedContext, final boolean withDepthBuffer,
-		final int stencilBits, final boolean isRecordable) {
-
-		return createFrom(maxClientVersion, wrapContext(sharedContext),
-			withDepthBuffer, stencilBits, isRecordable);
-	}
-
-	/**
-	 * 既存のレンダリングコンテキストを共有して新しいレンダリングコンテキストを生成する
-	 * レンダリングコンテキストを存在していなければcreateFromでsharedContextに
-	 * nullを渡したのと同じで独立したレンダリングコンテキストを生成する
-	 * @param maxClientVersion
-	 * @param withDepthBuffer
-	 * @param stencilBits
-	 * @param isRecordable
-	 * @return
-	 */
-	public static EGLBase createShared(final int maxClientVersion,
-		final boolean withDepthBuffer,
-		final int stencilBits, final boolean isRecordable) {
-
-		if (isEGL14Supported()) {
-			return new EGLBase14(maxClientVersion,
-				withDepthBuffer, stencilBits, isRecordable);
-		} else {
-			return new EGLBase10(maxClientVersion,
-				withDepthBuffer, stencilBits, isRecordable);
-		}
-	}
-
-	/**
-	 * 現在のスレッドの既存のレンダリングコンテキストがあればそれを共有して
-	 * 新しいレンダリングコンテキストを生成する
-	 * 既存のレンダリングコンテキストが存在していなければ独立したレンダリングコンテキストを
-	 * 生成する
-	 * @param maxClientVersion
-	 * @param withDepthBuffer
-	 * @param stencilBits
-	 * @param isRecordable
-	 * @return
-	 */
-	public static EGLBase createFromCurrent(final int maxClientVersion,
-		final boolean withDepthBuffer, final int stencilBits, final boolean isRecordable) {
-
-		if (isEGL14Supported()) {
-			return EGLBase14.createFromCurrentImpl(maxClientVersion,
-				withDepthBuffer, stencilBits, isRecordable);
-		} else {
-			return EGLBase10.createFromCurrentImpl(maxClientVersion,
-				withDepthBuffer, stencilBits, isRecordable);
-		}
-	}
-
-	/**
 	 * EGLレンダリングコンテキストのホルダークラス
 	 */
 	public static abstract class IContext {
@@ -217,34 +100,30 @@ public abstract class EGLBase implements EGLConst {
 	 * EGLコンフィグのホルダークラス
 	 */
 	public static abstract class IConfig {
-		public abstract Object getEGLConfig();
 	}
 
 	/**
 	 * EGLレンダリングコンテキストに紐付ける描画オブジェクト
 	 */
-	public interface IEglSurface extends ISurface {
+	public interface IEglSurface {
+		public void makeCurrent();
+		public void swap();
+
+		public IContext getContext();
 		/**
 		 * swap with presentation time[ns]
 		 * only works well now when using EGLBase14
 		 * @param presentationTimeNs
 		 */
-		@TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR2)
 		public void swap(final long presentationTimeNs);
+		public void release();
+		public boolean isValid();
 	}
 
 	public static boolean isEGL14Supported() {
-		// XXX GLES30はAPI>=18以降なんだけどAPI=18でもGLコンテキスト生成に
-		// XXX 失敗する端末があるのでこちらも合わせてAP1>=21に変更
-		return (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP);
+		return (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2);
 	}
 
-	protected EGLBase() {
-	}
-
-//--------------------------------------------------------------------------------
-// インターフェースメソッド
-//--------------------------------------------------------------------------------
 	/**
 	 * 関連するリソースを破棄する
 	 */
@@ -261,43 +140,34 @@ public abstract class EGLBase implements EGLConst {
 	 */
 	public abstract int getGlVersion();
 	/**
-	 * EGLレンダリングコンテキストが有効かどうか
-	 * @return
-	 */
-	public abstract boolean isValidContext();
-	/**
 	 * EGLレンダリングコンテキストを取得する
 	 * このEGLBaseインスタンスを使って生成したEglSurfaceをmakeCurrentした状態で
 	 * eglGetCurrentContextを呼び出すのと一緒
 	 * @return
-	 * @throws IllegalStateException
 	 */
-	public abstract IContext getContext() throws IllegalStateException;
+	public abstract IContext getContext();
+
 	/**
 	 * EGLコンフィグを取得する
 	 * @return
 	 */
 	public abstract IConfig getConfig();
+
 	/**
-	 * 指定したSurfaceからIEglSurfaceを生成する
-	 * 生成したIEglSurfaceをmakeCurrentした状態で戻る
-	 * @param nativeWindow Surface/SurfaceTexture/SurfaceHolder/SurfaceView
+	 * 指定したSurfaceからEglSurfaceを生成する
+	 * 生成したEglSurfaceをmakeCurrentした状態で戻る
+	 * @param nativeWindow Surface/SurfaceTexture/SurfaceHolder
 	 * @return
 	 */
 	public abstract IEglSurface createFromSurface(final Object nativeWindow);
 	/**
-	 * 指定した大きさのオフスクリーンIEglSurfaceを生成する
-	 * 生成したIEglSurfaceをmakeCurrentした状態で戻る
+	 * 指定した大きさのオフスクリーンEglSurfaceを生成する
+	 * 生成したEglSurfaceをmakeCurrentした状態で戻る
 	 * @param width PBufferオフスクリーンのサイズ(0以下はだめ)
 	 * @param height
 	 * @return
 	 */
 	public abstract IEglSurface createOffscreen(final int width, final int height);
-	/**
-	 * eglGetCurrentSurfaceで取得したEGLSurfaceをラップする
-	 * @return
-	 */
-	public abstract IEglSurface wrapCurrent();
 	/**
 	 * EGLレンダリングコンテキストとスレッドの紐付けを解除する
 	 */
@@ -310,32 +180,4 @@ public abstract class EGLBase implements EGLConst {
 	 * eglWaitNative: GPU側の描画処理が終了するまで実行をブロックする
 	 */
 	public abstract void sync();
-
-	/**
-	 * eglWaitGLを呼ぶ
-	 * コマンドキュー内のコマンドをすべて転送する, GLES20.glFinish()と同様の効果
-	 */
-	public abstract void waitGL();
-
-	/**
-	 * eglWaitNativeを呼ぶ
-	 * GPU側の描画処理が終了するまで実行をブロックする
-	 */
-	public abstract void waitNative();
-
-	/**
-	 * GLES3で初期化したかどうか
-	 * @return
-	 */
-	public boolean isGLES3() {
-		return getGlVersion() >= 3;
-	}
-
-	/**
-	 * GLES2またはGLES3で初期化したかどうか
-	 * @return
-	 */
-	public boolean isGLES2() {
-		return getGlVersion() >= 2;
-	}
 }

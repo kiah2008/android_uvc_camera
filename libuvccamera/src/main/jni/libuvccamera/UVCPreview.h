@@ -30,6 +30,9 @@
 #include <android/native_window.h>
 #include "objectarray.h"
 
+#include <memory>
+#include <thread/Executor.h>
+
 #pragma interface
 
 #define DEFAULT_PREVIEW_WIDTH 640
@@ -85,6 +88,9 @@ private:
 // improve performance by reducing memory allocation
 	pthread_mutex_t pool_mutex;
 	ObjectArray<uvc_frame_t *> mFramePool;
+
+	std::shared_ptr<cutils::Executor> mThreadExecutor;
+
 	uvc_frame_t *get_frame(size_t data_bytes);
 	void recycle_frame(uvc_frame_t *frame);
 	void init_pool(size_t data_bytes);

@@ -3,7 +3,7 @@ package com.serenegiant.widget;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import androidx.annotation.DrawableRes;
 import androidx.annotation.NonNull;
-import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import android.view.View;
@@ -48,7 +47,7 @@ public class DividerItemDecoration extends RecyclerView.ItemDecoration  {
 
 	public DividerItemDecoration(final Context context) {
 		Drawable divider = null;
-		final TypedArray a = context.getTheme().obtainStyledAttributes(ATTRS);
+		final TypedArray a = context.obtainStyledAttributes(ATTRS);
 		try {
 			divider = a.getDrawable(0);
 		} catch (final Exception e) {
@@ -59,7 +58,7 @@ public class DividerItemDecoration extends RecyclerView.ItemDecoration  {
 	}
 
 	public DividerItemDecoration(final Context context, @DrawableRes final int divider) {
-		init(ContextCompat.getDrawable(context, divider));
+		init(context.getResources().getDrawable(divider));
 	}
 
 	public DividerItemDecoration(final Context context, final Drawable divider) {

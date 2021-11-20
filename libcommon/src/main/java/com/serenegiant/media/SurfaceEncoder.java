@@ -3,7 +3,7 @@ package com.serenegiant.media;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ public class SurfaceEncoder extends AbstractVideoEncoder implements ISurfaceEnco
 	protected Surface mInputSurface;
 
     public SurfaceEncoder(final IRecorder recorder, final EncoderListener listener) {
-		super(MediaCodecUtils.MIME_VIDEO_AVC, recorder, listener);
+		super(MediaCodecHelper.MIME_VIDEO_AVC, recorder, listener);
     }
 
     /**
@@ -56,7 +56,7 @@ public class SurfaceEncoder extends AbstractVideoEncoder implements ISurfaceEnco
         mIsCapturing = true;
         mIsEOS = false;
 
-        final MediaCodecInfo codecInfo = MediaCodecUtils.selectVideoEncoder(MediaCodecUtils.MIME_VIDEO_AVC);
+        final MediaCodecInfo codecInfo = MediaCodecHelper.selectVideoEncoder(MediaCodecHelper.MIME_VIDEO_AVC);
         if (codecInfo == null) {
 //			Log.e(TAG, "Unable to find an appropriate codec for " + MIME_AVC);
             return true;
@@ -69,22 +69,22 @@ public class SurfaceEncoder extends AbstractVideoEncoder implements ISurfaceEnco
         	= ((mWidth >= 1000) || (mHeight >= 1000));
 //			&& checkProfileLevel(VIDEO_MIME_TYPE, codecInfo);	// SC-06DでCodecInfo#getCapabilitiesForTypeが返ってこない/凄い時間がかかるのでコメントアウト
 
-        final MediaFormat format = MediaFormat.createVideoFormat(MediaCodecUtils.MIME_VIDEO_AVC, mWidth, mHeight);
+        final MediaFormat format = MediaFormat.createVideoFormat(MediaCodecHelper.MIME_VIDEO_AVC, mWidth, mHeight);
 
         // MediaCodecに適用するパラメータを設定する。誤った設定をするとMediaCodec#configureが
         // 復帰不可能な例外を生成する
         format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);	// API >= 18
         format.setInteger(MediaFormat.KEY_BIT_RATE, mBitRate > 0
-        	? mBitRate : getConfig().getBitrate(mWidth, mHeight));
+        	? mBitRate : VideoConfig.getBitrate(mWidth, mHeight));
         format.setInteger(MediaFormat.KEY_FRAME_RATE, mFramerate > 0
-        	? mFramerate : getConfig().captureFps());
+        	? mFramerate : VideoConfig.getCaptureFps());
         format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, mIFrameIntervals > 0
-        	? mIFrameIntervals : getConfig().calcIFrameIntervals());
+        	? mIFrameIntervals : VideoConfig.getIFrame());
 //		if (DEBUG) Log.d(TAG, "format: " + format);
 
         // 設定したフォーマットに従ってMediaCodecのエンコーダーを生成する
         // エンコーダーへの入力に使うSurfaceを取得する
-        mMediaCodec = MediaCodec.createEncoderByType(MediaCodecUtils.MIME_VIDEO_AVC);
+        mMediaCodec = MediaCodec.createEncoderByType(MediaCodecHelper.MIME_VIDEO_AVC);
         mMediaCodec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
         mInputSurface = mMediaCodec.createInputSurface();	// API >= 18
         mMediaCodec.start();

@@ -3,7 +3,7 @@ package com.serenegiant.utils;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,21 +26,15 @@ import android.text.TextUtils;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityManager;
 
-import com.serenegiant.system.ContextUtils;
-
 public class TalkBackHelper {
-	private TalkBackHelper() {
-		// インスタンス化をエラーにするためにデフォルトコンストラクタをprivateに
-	}
-
 	/**
 	 * Accessibilityが有効になっているかどうかを取得
 	 * @param context
 	 * @return
 	 */
 	public static boolean isEnabled(@NonNull final Context context) {
-		final AccessibilityManager manager
-			= ContextUtils.requireSystemService(context, AccessibilityManager.class);
+		final AccessibilityManager manager = (AccessibilityManager) context
+			.getSystemService(Context.ACCESSIBILITY_SERVICE);
 		return manager.isEnabled();
 	}
 
@@ -54,8 +48,8 @@ public class TalkBackHelper {
 		@Nullable final CharSequence text) throws IllegalStateException {
 
 		if (TextUtils.isEmpty(text) || (context == null)) return;
-		final AccessibilityManager manager
-			= ContextUtils.requireSystemService(context, AccessibilityManager.class);
+		final AccessibilityManager manager = (AccessibilityManager) context
+			.getSystemService(Context.ACCESSIBILITY_SERVICE);
 		if ((manager != null) && manager.isEnabled()) {
 			final AccessibilityEvent event = AccessibilityEvent.obtain();
 			if (event != null) {
@@ -82,8 +76,8 @@ public class TalkBackHelper {
 		@Nullable final CharSequence[] text) throws IllegalStateException {
 
 		if ((text == null) || (text.length == 0) || (context == null)) return;
-		final AccessibilityManager manager
-			= ContextUtils.requireSystemService(context, AccessibilityManager.class);
+		final AccessibilityManager manager = (AccessibilityManager) context
+			.getSystemService(Context.ACCESSIBILITY_SERVICE);
 		if ((manager != null) && manager.isEnabled()) {
 			final AccessibilityEvent event = AccessibilityEvent.obtain();
 			if (event != null) {

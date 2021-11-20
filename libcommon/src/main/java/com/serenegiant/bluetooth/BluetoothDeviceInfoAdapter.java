@@ -3,7 +3,7 @@ package com.serenegiant.bluetooth;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,7 +30,6 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.serenegiant.common.R;
-import com.serenegiant.view.ViewUtils;
 
 import java.util.List;
 
@@ -74,7 +73,7 @@ public class BluetoothDeviceInfoAdapter extends ArrayAdapter<BluetoothDeviceInfo
 			final ViewHolder holder = new ViewHolder();
 			holder.nameTv = rootView.findViewById(R.id.name);
 			holder.addressTv = rootView.findViewById(R.id.address);
-			holder.icon = ViewUtils.findIconView(rootView);
+			holder.icon = rootView.findViewById(R.id.icon);
 			rootView.setTag(holder);
 		}
 		final ViewHolder holder = (ViewHolder)rootView.getTag();

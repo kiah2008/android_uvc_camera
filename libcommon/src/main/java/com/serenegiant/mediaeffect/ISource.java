@@ -3,7 +3,7 @@ package com.serenegiant.mediaeffect;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,27 +20,13 @@ package com.serenegiant.mediaeffect;
 
 import androidx.annotation.NonNull;
 
-import com.serenegiant.glutils.GLSurface;
+import com.serenegiant.glutils.TextureOffscreen;
 
 public interface ISource {
-	/**
-	 * オフスクリーンを初期状態に戻す
-	 * GLコンテキスト内で呼び出すこと
-	 * @return
-	 */
 	public ISource reset();
-
-	/**
-	 * 映像サイズを設定
-	 * GLコンテキスト内で呼び出すこと
-	 * @param width
-	 * @param height
-	 * @return
-	 */
 	public ISource resize(final int width, final int height);
 	/**
 	 * IEffectを適用する。1回呼び出す毎に入力と出力のオフスクリーン(テクスチャ)が入れ替わる
-	 * GLコンテキスト内で呼び出すこと
 	 * @param effect
 	 * @return
 	 */
@@ -51,11 +37,6 @@ public interface ISource {
 	public int[] getSourceTexId();
 	public int getOutputTexId();
 	public float[] getTexMatrix();
-	public GLSurface getOutputTexture();
-
-	/**
-	 * 関係するリソースを破棄
-	 * GLコンテキスト内で呼び出すこと
-	 */
+	public TextureOffscreen getOutputTexture();
 	public void release();
 }

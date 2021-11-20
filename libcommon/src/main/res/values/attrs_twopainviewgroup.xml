@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-	<declare-styleable name="TwoPanelViewGroup">
+	<declare-styleable name="TwoPainViewGroup">
 		<attr name="orientation" default="horizontal" format="enum|integer">
 			<enum name="horizontal" value="0"/>
 			<enum name="vertical" value="1"/>

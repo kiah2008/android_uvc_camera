@@ -3,7 +3,7 @@ package com.serenegiant.glutils;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,47 +24,35 @@ import javax.microedition.khronos.egl.EGLContext;
 import javax.microedition.khronos.egl.EGLDisplay;
 import javax.microedition.khronos.egl.EGLSurface;
 
-import android.annotation.TargetApi;
+import android.graphics.Canvas;
+import android.graphics.Rect;
+import android.graphics.SurfaceTexture;
 import android.opengl.GLES10;
 import android.opengl.GLES20;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-
-import android.opengl.GLES30;
-import android.os.Build;
 import android.util.Log;
 import android.view.Surface;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 
-import com.serenegiant.system.BuildCheck;
+import com.serenegiant.utils.BuildCheck;
 
 /**
  * EGLレンダリングコンテキストを生成＆使用するためのヘルパークラス
  */
 /*package*/ class EGLBase10 extends EGLBase {
-	private static final boolean DEBUG = false;	// FIXME set false on release
-	private static final String TAG = EGLBase10.class.getSimpleName();
+//	private static final boolean DEBUG = false;	// FIXME set false on release
+	private static final String TAG = "EGLBase10";
 
-	private static final Context EGL_NO_CONTEXT = wrap(EGL10.EGL_NO_CONTEXT);
+    private EGL10 mEgl = null;
+	private EGLDisplay mEglDisplay = null;
+    private Config mEglConfig = null;
+    private int mGlVersion = 2;
 
-	/**
-	 * EGLレンダリングコンテキストラップしてContext extends IContextを生成する
-	 * @param context
-	 * @return
-	 */
-	public static Context wrap(@NonNull final EGLContext context) {
-		return new Context(context);
-	}
+	private static final Context EGL_NO_CONTEXT = new Context(EGL10.EGL_NO_CONTEXT);
+	@NonNull private Context mContext = EGL_NO_CONTEXT;
 
-	/**
-	 * EGLConfigをラップしてConfig extends IConfigを返す
-	 * @param eglConfig
-	 * @return
-	 */
-	public static Config wrap(@NonNull final EGLConfig eglConfig) {
-		return new Config(eglConfig);
-	}
-
-//--------------------------------------------------------------------------------
 	/**
 	 * EGLレンダリングコンテキストのホルダークラス
 	 */
@@ -79,20 +67,12 @@ import com.serenegiant.system.BuildCheck;
 		public long getNativeHandle() {
 			return 0L;
 		}
-
+		
 		@Override
 		public Object getEGLContext() {
 			return eglContext;
 		}
-
-		@NonNull
-		@Override
-		public String toString() {
-			return "Context{" +
-				"eglContext=" + eglContext +
-				'}';
-		}
-	} // Context
+	}
 
 	public static class Config extends IConfig {
 		public final EGLConfig eglConfig;
@@ -100,58 +80,96 @@ import com.serenegiant.system.BuildCheck;
 		private Config(final EGLConfig eglConfig) {
 			this.eglConfig = eglConfig;
 		}
+	}
 
-		@Override
-		public EGLConfig getEGLConfig() {
-			return eglConfig;
-		}
+	/**
+	 * Android4.1.2だとSurfaceを使えない。
+	 * SurfaceTexture/SurfaceHolderの場合は内部でSurfaceを生成して使っているにもかかわらず。
+	 * SurfaceHolderはインターフェースなのでSurfaceHolderを継承したダミークラスを生成して食わす
+	 */
+	public static class MySurfaceHolder implements SurfaceHolder {
+		private final Surface surface;
 
-		@NonNull
-		@Override
-		public String toString() {
-			return "Config{" +
-				"eglConfig=" + eglConfig +
-				'}';
+		public MySurfaceHolder(final Surface surface) {
+			this.surface = surface;
 		}
-	} // Config
+		@Override
+		public Surface getSurface() {
+			return surface;
+		}
+		// ここより下はどないでもええ
+		@Override
+		public void addCallback(final Callback callback) {
+		}
+		@Override
+		public void removeCallback(final Callback callback) {
+		}
+		@Override
+		public boolean isCreating() {
+			return false;
+		}
+		@Override
+		public void setType(final int type) {
+		}
+		@Override
+		public void setFixedSize(final int width, final int height) {
+		}
+		@Override
+		public void setSizeFromLayout() {
+		}
+		@Override
+		public void setFormat(final int format) {
+		}
+		@Override
+		public void setKeepScreenOn(final boolean screenOn) {
+		}
+		@Override
+		public Canvas lockCanvas() {
+			return null;
+		}
+		@Override
+		public Canvas lockCanvas(final Rect dirty) {
+			return null;
+		}
+		@Override
+		public void unlockCanvasAndPost(final Canvas canvas) {
+		}
+		@Override
+		public Rect getSurfaceFrame() {
+			return null;
+		}
+	}
 
 	/**
 	 * EGLレンダリングコンテキストに紐付ける描画オブジェクト
 	 */
-	private static class EglSurface implements IEglSurface {
-		@NonNull
+	public static class EglSurface implements IEglSurface {
 		private final EGLBase10 mEglBase;
-		@NonNull
-		private EGLSurface mEglSurface;
-		private boolean mOwnSurface;
-		private int viewPortX, viewPortY, viewPortWidth, viewPortHeight;
+		private EGLSurface mEglSurface = EGL10.EGL_NO_SURFACE;
 
 		/**
-		 * Surface(Surface/SurfaceTexture/SurfaceHolder/SurfaceView)に
-		 * 関係付けられたEglSurfaceを生成するコンストラクタ
+		 * Surface(Surface/SurfaceTexture/SurfaceHolder)に関係付けられたEglSurface
 		 * @param eglBase
 		 * @param surface
 		 */
-		private EglSurface(@NonNull final EGLBase10 eglBase, final Object surface)
+		private EglSurface(final EGLBase10 eglBase, final Object surface)
 			throws IllegalArgumentException {
 
 //			if (DEBUG) Log.v(TAG, "EglSurface:");
 			mEglBase = eglBase;
-			final Object _surface;
 			if ((surface instanceof Surface) && !BuildCheck.isAndroid4_2()) {
 				// Android4.1.2だとSurfaceを使えない。
 				// SurfaceTexture/SurfaceHolderの場合は内部で
 				// Surfaceを生成して使っているにもかかわらず。
 				// SurfaceHolderはインターフェースなのでSurfaceHolderを
 				// 継承したダミークラスを生成して食わす
-				_surface = new WrappedSurfaceHolder((Surface) surface);
-			} else {
-				_surface = surface;
-			}
-			if (GLUtils.isSupportedSurface(_surface)) {
-				mEglSurface = mEglBase.createWindowSurface(_surface);
-				mOwnSurface = true;
-				setViewPort(0, 0, getWidth(), getHeight());
+				mEglSurface = mEglBase.createWindowSurface(
+					new MySurfaceHolder((Surface) surface));
+			} else if ((surface instanceof Surface)
+				|| (surface instanceof SurfaceHolder)
+				|| (surface instanceof SurfaceTexture)
+				|| (surface instanceof SurfaceView)) {
+				mEglSurface = mEglBase.createWindowSurface(surface);
 			} else {
 				throw new IllegalArgumentException("unsupported surface");
 			}
@@ -159,14 +177,11 @@ import com.serenegiant.system.BuildCheck;
 
 		/**
 		 * 指定した大きさを持つオフスクリーンEglSurface(PBuffer)
-		 * width/heightの少なくとも一方が0以下なら最小サイズとして1x1のオフスクリーンにする
 		 * @param eglBase
 		 * @param width
 		 * @param height
 		 */
-		private EglSurface(@NonNull final EGLBase10 eglBase,
-			final int width, final int height) {
-
+		private EglSurface(final EGLBase10 eglBase, final int width, final int height) {
 //			if (DEBUG) Log.v(TAG, "EglSurface:");
 			mEglBase = eglBase;
 			if ((width <= 0) || (height <= 0)) {
@@ -174,53 +189,6 @@ import com.serenegiant.system.BuildCheck;
 			} else {
 				mEglSurface = mEglBase.createOffscreenSurface(width, height);
 			}
-			mOwnSurface = true;
-			setViewPort(0, 0, getWidth(), getHeight());
-		}
-
-		/**
-		 * eglGetCurrentSurfaceで取得したEGLSurfaceをラップする
-		 * @param eglBase
-		 */
-		private EglSurface(@NonNull final EGLBase10 eglBase) {
-			mEglBase = eglBase;
-			mEglSurface = eglBase.mEgl.eglGetCurrentSurface(EGL10.EGL_DRAW);
-			mOwnSurface = false;
-			setViewPort(0, 0, getWidth(), getHeight());
-		}
-
-		/**
-		 * 破棄処理
-		 */
-		@Override
-		public void release() {
-//			if (DEBUG) Log.v(TAG, "EglSurface:release:");
-			mEglBase.makeDefault();
-			if (mOwnSurface) {
-				mEglBase.destroyWindowSurface(mEglSurface);
-			}
-			mEglSurface = EGL10.EGL_NO_SURFACE;
-		}
-
-		/**
-		 * EGLSurfaceが有効かどうかを取得
-		 * @return
-		 */
-		@Override
-		public boolean isValid() {
-			return (mEglSurface != EGL10.EGL_NO_SURFACE)
-				&& (mEglBase.getSurfaceWidth(mEglSurface) > 0)
-				&& (mEglBase.getSurfaceHeight(mEglSurface) > 0);
-		}
-
-		@Override
-		public int getWidth() {
-			return mEglBase.getSurfaceWidth(mEglSurface);
-		}
-
-		@Override
-		public int getHeight() {
-			return mEglBase.getSurfaceHeight(mEglSurface);
 		}
 
 		/**
@@ -230,31 +198,12 @@ import com.serenegiant.system.BuildCheck;
 		@Override
 		public void makeCurrent() {
 			mEglBase.makeCurrent(mEglSurface);
-			setViewPort(viewPortX, viewPortY, viewPortWidth, viewPortHeight);
-		}
-
-		/**
-		 * Viewportを設定
-		 * ここで設定した値は次回以降makeCurrentを呼んだときに復帰される
-		 * @param x
-		 * @param y
-		 * @param width
-		 * @param height
-		 */
-		@Override
-		public void setViewPort(final int x, final int y, final int width, final int height) {
-			viewPortX = x;
-			viewPortY = y;
-			viewPortWidth = width;
-			viewPortHeight = height;
-
-			final int glVersion = mEglBase.getGlVersion();
-			if (glVersion >= 3) {
-				GLES30.glViewport(x, y, width, height);
-			} else if (mEglBase.getGlVersion() >= 2) {
-				GLES20.glViewport(x, y, width, height);
+			if (mEglBase.getGlVersion() >= 2) {
+				GLES20.glViewport(0, 0,
+					mEglBase.getSurfaceWidth(mEglSurface), mEglBase.getSurfaceHeight(mEglSurface));
 			} else {
-				GLES10.glViewport(x, y, width, height);
+				GLES10.glViewport(0, 0,
+					mEglBase.getSurfaceWidth(mEglSurface), mEglBase.getSurfaceHeight(mEglSurface));
 			}
 		}
 
@@ -266,66 +215,44 @@ import com.serenegiant.system.BuildCheck;
 			mEglBase.swap(mEglSurface);
 		}
 
-		@TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR2)
 		@Override
 		public void swap(final long presentationTimeNs) {
 			mEglBase.swap(mEglSurface, presentationTimeNs);
 		}
 
-		@TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR2)
+		@Override
+		public IContext getContext() {
+			return mEglBase.getContext();
+		}
+
 		public void setPresentationTime(final long presentationTimeNs) {
 //			EGLExt.eglPresentationTimeANDROID(mEglBase.mEglDisplay,
 // 				mEglSurface, presentationTimeNs);
 		}
 
-		@NonNull
+		/**
+		 * EGLSurfaceが有効かどうかを取得
+		 * @return
+		 */
 		@Override
-		public String toString() {
-			return "EglSurface{" +
-				"mEglBase=" + mEglBase +
-				", mEglSurface=" + mEglSurface +
-				", mOwnSurface=" + mOwnSurface +
-				", viewPortX=" + viewPortX +
-				", viewPortY=" + viewPortY +
-				", viewPortWidth=" + viewPortWidth +
-				", viewPortHeight=" + viewPortHeight +
-				'}';
+		public boolean isValid() {
+			return (mEglSurface != null)
+				&& (mEglSurface != EGL10.EGL_NO_SURFACE)
+				&& (mEglBase.getSurfaceWidth(mEglSurface) > 0)
+				&& (mEglBase.getSurfaceHeight(mEglSurface) > 0);
 		}
-	} // EglSurface
 
-//--------------------------------------------------------------------------------
-	/**
-	 * 現在のスレッドの既存のレンダリングコンテキストがあればそれを共有して
-	 * 新しいレンダリングコンテキストを生成する
-	 * 既存のレンダリングコンテキストが存在していなければ独立したレンダリングコンテキストを
-	 * 生成する
-	 * @param maxClientVersion
-	 * @param withDepthBuffer
-	 * @param stencilBits
-	 * @param isRecordable
-	 * @return
-	 */
-	/*package*/ static EGLBase createFromCurrentImpl(final int maxClientVersion,
-		final boolean withDepthBuffer, final int stencilBits, final boolean isRecordable) {
-
-		Context context = null;
-		final EGL10 egl10 = (EGL10)EGLContext.getEGL();
-		final EGLContext currentContext = egl10.eglGetCurrentContext();
-		final EGLSurface currentSurface = egl10.eglGetCurrentSurface(EGL10.EGL_DRAW);
-		if ((currentContext != null) && (currentSurface != null)) {
-			context = wrap(currentContext);
+		/**
+		 * 破棄処理
+		 */
+		@Override
+		public void release() {
+//			if (DEBUG) Log.v(TAG, "EglSurface:release:");
+			mEglBase.makeDefault();
+			mEglBase.destroyWindowSurface(mEglSurface);
+	        mEglSurface = EGL10.EGL_NO_SURFACE;
 		}
-		return new EGLBase10(maxClientVersion, context, withDepthBuffer, stencilBits, isRecordable);
 	}
-
-//--------------------------------------------------------------------------------
-	@NonNull
-	private Context mContext = EGL_NO_CONTEXT;
-	private EGL10 mEgl = null;
-	@NonNull
-	private EGLDisplay mEglDisplay = EGL10.EGL_NO_DISPLAY;
-	private Config mEglConfig = null;
-	private int mGlVersion = 2;
 
 	/**
 	 * コンストラクタ
@@ -335,30 +262,12 @@ import com.serenegiant.system.BuildCheck;
 	 * @param isRecordable true MediaCodec等の録画用Surfaceを使用する場合に、
 	 * 						EGL_RECORDABLE_ANDROIDフラグ付きでコンフィグする
 	 */
-	/*package*/ EGLBase10(final int maxClientVersion,
-		@Nullable final Context sharedContext, final boolean withDepthBuffer,
+	public EGLBase10(final int maxClientVersion,
+		final Context sharedContext, final boolean withDepthBuffer,
 		final int stencilBits, final boolean isRecordable) {
 
-		super();
 //		if (DEBUG) Log.v(TAG, "Constructor:");
 		init(maxClientVersion, sharedContext, withDepthBuffer, stencilBits, isRecordable);
-	}
-
-	/**
-	 * コンストラクタ
-	 * @param maxClientVersion
-	 * @param withDepthBuffer
-	 * @param isRecordable true MediaCodec等の録画用Surfaceを使用する場合に、
-	 * 						EGL_RECORDABLE_ANDROIDフラグ付きでコンフィグする
-	 */
-	/*package*/ EGLBase10(final int maxClientVersion,
-		final boolean withDepthBuffer,
-		final int stencilBits, final boolean isRecordable) {
-
-		super();
-//		if (DEBUG) Log.v(TAG, "Constructor:");
-		init(maxClientVersion, wrap(((EGL10) EGLContext.getEGL()).eglGetCurrentContext()),
-			withDepthBuffer, stencilBits, isRecordable);
 	}
 
 	/**
@@ -374,7 +283,7 @@ import com.serenegiant.system.BuildCheck;
    			EGL10.EGL_NO_SURFACE, EGL10.EGL_NO_SURFACE, EGL10.EGL_NO_CONTEXT);
 //		mEgl.eglReleaseThread();	// XXX これを入れるとハングアップする機種がある
    		mEgl.eglTerminate(mEglDisplay);
-    	mEglDisplay = EGL10.EGL_NO_DISPLAY;
+    	mEglDisplay = null;
 		mEglConfig = null;
    		mEgl = null;
     }
@@ -382,15 +291,15 @@ import com.serenegiant.system.BuildCheck;
     /**
      * 指定したSurfaceからEglSurfaceを生成する
      * 生成したEglSurfaceをmakeCurrentした状態で戻る
-     * @param nativeWindow Surface/SurfaceTexture/SurfaceHolder/SurfaceView
+     * @param nativeWindow Surface/SurfaceTexture/SurfaceHolder
      * @return
      */
 	@Override
-	public IEglSurface createFromSurface(final Object nativeWindow) {
+	public EglSurface createFromSurface(final Object nativeWindow) {
 //		if (DEBUG) Log.v(TAG, "createFromSurface:");
-		final IEglSurface result = new EglSurface(this, nativeWindow);
-		result.makeCurrent();
-		return result;
+		final EglSurface eglSurface = new EglSurface(this, nativeWindow);
+		eglSurface.makeCurrent();
+		return eglSurface;
 	}
 
 	/**
@@ -401,32 +310,11 @@ import com.serenegiant.system.BuildCheck;
 	 * @return
 	 */
 	@Override
-	public IEglSurface createOffscreen(final int width, final int height) {
+	public EglSurface createOffscreen(final int width, final int height) {
 //		if (DEBUG) Log.v(TAG, "createOffscreen:");
-		final IEglSurface result = new EglSurface(this, width, height);
-		result.makeCurrent();
-		return result;
-	}
-
-	/**
-	 * eglGetCurrentSurfaceで取得したEGLSurfaceをラップする
-	 * @return
-	 */
-	@Override
-	public IEglSurface wrapCurrent() {
-//		if (DEBUG) Log.v(TAG, "createOffscreen:");
-		final IEglSurface result = new EglSurface(this);
-		result.makeCurrent();
-		return result;
-	}
-
-	/**
-	 * EGLレンダリングコンテキストが有効かどうか
-	 * @return
-	 */
-	@Override
-	public boolean isValidContext() {
-		return (mContext != null) && (mContext.eglContext != EGL10.EGL_NO_CONTEXT);
+		final EglSurface eglSurface = new EglSurface(this, width, height);
+		eglSurface.makeCurrent();
+		return eglSurface;
 	}
 
 	/**
@@ -434,13 +322,9 @@ import com.serenegiant.system.BuildCheck;
 	 * このEGLBaseインスタンスを使って生成したEglSurfaceをmakeCurrentした状態で
 	 * eglGetCurrentContextを呼び出すのと一緒
 	 * @return
-	 * @throws IllegalStateException
 	 */
 	@Override
-	public Context getContext() throws IllegalStateException {
-		if (!isValidContext()) {
-			throw new IllegalStateException();
-		}
+	public Context getContext() {
 		return mContext;
 	}
 
@@ -479,24 +363,6 @@ import com.serenegiant.system.BuildCheck;
 	}
 
 	/**
-	 * eglWaitGLを呼ぶ
-	 * コマンドキュー内のコマンドをすべて転送する, GLES20.glFinish()と同様の効果
-	 */
-	@Override
-	public void waitGL() {
-		mEgl.eglWaitGL();	// GLES20.glFinish()と同様の効果
-	}
-
-	/**
-	 * eglWaitNativeを呼ぶ
-	 * GPU側の描画処理が終了するまで実行をブロックする
-	 */
-	@Override
-	public void waitNative() {
-		mEgl.eglWaitNative(EGL10.EGL_CORE_NATIVE_ENGINE, null);
-	}
-
-	/**
 	 * GLESに文字列を問い合わせる
 	 * @param what
 	 * @return
@@ -520,14 +386,13 @@ import com.serenegiant.system.BuildCheck;
 	 * @param maxClientVersion
 	 * @param sharedContext
 	 * @param withDepthBuffer
-	 * @param stencilBits
 	 * @param isRecordable
 	 */
 	private final void init(final int maxClientVersion,
 		@Nullable Context sharedContext,
 		final boolean withDepthBuffer, final int stencilBits, final boolean isRecordable) {
 
-		if (DEBUG) Log.v(TAG, "init:");
+//		if (DEBUG) Log.v(TAG, "init:");
 		sharedContext = (sharedContext != null) ? sharedContext : EGL_NO_CONTEXT;
 		if (mEgl == null) {
 			mEgl = (EGL10)EGLContext.getEGL();
@@ -538,29 +403,29 @@ import com.serenegiant.system.BuildCheck;
 	        // EGLのバージョンを取得
 			final int[] version = new int[2];
 	        if (!mEgl.eglInitialize(mEglDisplay, version)) {
-	        	mEglDisplay = EGL10.EGL_NO_DISPLAY;
+	        	mEglDisplay = null;
 	            throw new RuntimeException("eglInitialize failed");
 	        }
 		}
 		EGLConfig config;
 		if (maxClientVersion >= 3) {
-			if (DEBUG) Log.d(TAG, "init:GLES3で取得できるかどうか試してみる");
+			// GLES3で取得できるかどうか試してみる
 			config = getConfig(3, withDepthBuffer, stencilBits, isRecordable);
 			if (config != null) {
 				final EGLContext context = createContext(sharedContext, config, 3);
-				if (mEgl.eglGetError() == EGL10.EGL_SUCCESS) {
+				if ((mEgl.eglGetError()) == EGL10.EGL_SUCCESS) {
 					// ここは例外生成したくないのでcheckEglErrorの代わりに自前でチェック
 					//Log.d(TAG, "Got GLES 3 config");
-					mEglConfig = wrap(config);
-					mContext = wrap(context);
+					mEglConfig = new Config(config);
+					mContext = new Context(context);
 					mGlVersion = 3;
 				}
 			}
 		}
 		// GLES3で取得できなかった時はGLES2を試みる
-		if ((maxClientVersion >= 2) && !isValidContext()) {
+		if ((maxClientVersion >= 2)
+			&& ((mContext == null) || (mContext.eglContext == EGL10.EGL_NO_CONTEXT))) {
 
-			if (DEBUG) Log.d(TAG, "init:GLES2を試みる");
             config = getConfig(2, withDepthBuffer, stencilBits, isRecordable);
             if (config == null) {
                	throw new RuntimeException("chooseConfig failed");
@@ -569,8 +434,8 @@ import com.serenegiant.system.BuildCheck;
 				// create EGL rendering context
 				final EGLContext context = createContext(sharedContext, config, 2);
 				checkEglError("eglCreateContext");
-				mEglConfig = wrap(config);
-				mContext = wrap(context);
+				mEglConfig = new Config(config);
+				mContext = new Context(context);
 				mGlVersion = 2;
 			} catch (final Exception e) {
 				if (isRecordable) {
@@ -581,13 +446,13 @@ import com.serenegiant.system.BuildCheck;
 					// create EGL rendering context
 					final EGLContext context = createContext(sharedContext, config, 2);
 					checkEglError("eglCreateContext");
-					mEglConfig = wrap(config);
-					mContext = wrap(context);
+					mEglConfig = new Config(config);
+					mContext = new Context(context);
 					mGlVersion = 2;
 				}
 			}
         }
-        if (!isValidContext()) {
+        if ((mContext == null) || (mContext.eglContext == EGL10.EGL_NO_CONTEXT)) {
 			config = getConfig(1, withDepthBuffer, stencilBits, isRecordable);
 			if (config == null) {
 				throw new RuntimeException("chooseConfig failed");
@@ -595,18 +460,15 @@ import com.serenegiant.system.BuildCheck;
 			// create EGL rendering context
 			final EGLContext context = createContext(sharedContext, config, 1);
 			checkEglError("eglCreateContext");
-			mEglConfig = wrap(config);
-			mContext = wrap(context);
+			mEglConfig = new Config(config);
+			mContext = new Context(context);
 			mGlVersion = 1;
 		}
         // confirm whether the EGL rendering context is successfully created
 		final int[] values = new int[1];
 		mEgl.eglQueryContext(mEglDisplay,
 			mContext.eglContext, EGL_CONTEXT_CLIENT_VERSION, values);
-		if (mEgl.eglGetError() == EGL10.EGL_SUCCESS) {
-			Log.d(TAG, String.format("EGLContext created, client version %d(request %d) ",
-				values[0], maxClientVersion));
-		}
+		Log.d(TAG, "EGLContext created, client version " + values[0]);
         makeDefault();
 	}
 
@@ -666,7 +528,7 @@ import com.serenegiant.system.BuildCheck;
     	@NonNull final Context sharedContext,
     	final EGLConfig config, final int version) {
 
-		if (DEBUG) Log.v(TAG, "createContext:version=" + version);
+//		if (DEBUG) Log.v(TAG, "createContext:");
 
         final int[] attrib_list = {
         	EGL_CONTEXT_CLIENT_VERSION, version,
@@ -710,16 +572,13 @@ import com.serenegiant.system.BuildCheck;
 	 * @param nativeWindow
 	 * @return
 	 */
-	@NonNull
-    private final EGLSurface createWindowSurface(final Object nativeWindow)
-    	throws IllegalArgumentException {
-
+    private final EGLSurface createWindowSurface(final Object nativeWindow) {
 //		if (DEBUG) Log.v(TAG, "createWindowSurface:nativeWindow=" + nativeWindow);
 
 		final int[] surfaceAttribs = {
             EGL10.EGL_NONE
         };
-		EGLSurface result;
+		EGLSurface result = null;
 		try {
 			result = mEgl.eglCreateWindowSurface(mEglDisplay,
 				mEglConfig.eglConfig, nativeWindow, surfaceAttribs);
@@ -732,8 +591,6 @@ import com.serenegiant.system.BuildCheck;
             }
             makeCurrent(result);
 			// 画面サイズ・フォーマットの取得
-		} catch (final IllegalArgumentException e) {
-			throw e;
 		} catch (final Exception e) {
 			Log.e(TAG, "eglCreateWindowSurface", e);
 			throw new IllegalArgumentException(e);
@@ -743,13 +600,8 @@ import com.serenegiant.system.BuildCheck;
 
     /**
      * Creates an EGL surface associated with an offscreen buffer.
-     * @param width
-     * @param height
      */
-    @NonNull
-    private final EGLSurface createOffscreenSurface(final int width, final int height)
-		throws IllegalArgumentException {
-
+    private final EGLSurface createOffscreenSurface(final int width, final int height) {
 //		if (DEBUG) Log.v(TAG, "createOffscreenSurface:");
         final int[] surfaceAttribs = {
                 EGL10.EGL_WIDTH, width,
@@ -757,28 +609,22 @@ import com.serenegiant.system.BuildCheck;
                 EGL10.EGL_NONE
         };
         mEgl.eglWaitGL();
-		EGLSurface result;
+		EGLSurface result = null;
 		try {
 			result = mEgl.eglCreatePbufferSurface(mEglDisplay,
 				mEglConfig.eglConfig, surfaceAttribs);
 	        checkEglError("eglCreatePbufferSurface");
-			if (result == null || result == EGL10.EGL_NO_SURFACE) {
-				final int error = mEgl.eglGetError();
-				throw new RuntimeException("createOffscreenSurface failed error=" + error);
+	        if (result == null) {
+	            throw new RuntimeException("surface was null");
 	        }
 		} catch (final IllegalArgumentException e) {
-			throw e;
+			Log.e(TAG, "createOffscreenSurface", e);
 		} catch (final RuntimeException e) {
 			Log.e(TAG, "createOffscreenSurface", e);
-			throw new IllegalArgumentException(e);
 		}
 		return result;
     }
 
-	/**
-	 * オフスクリーンサーフェースを破棄
-	 * @param surface
-	 */
 	private final void destroyWindowSurface(EGLSurface surface) {
 //		if (DEBUG) Log.v(TAG, "destroySurface:");
 
@@ -787,6 +633,7 @@ import com.serenegiant.system.BuildCheck;
         		EGL10.EGL_NO_SURFACE, EGL10.EGL_NO_SURFACE, EGL10.EGL_NO_CONTEXT);
         	mEgl.eglDestroySurface(mEglDisplay, surface);
         }
+        surface = EGL10.EGL_NO_SURFACE;
 //		if (DEBUG) Log.v(TAG, "destroySurface:finished");
 	}
 
@@ -799,10 +646,6 @@ import com.serenegiant.system.BuildCheck;
 
 	private final EGLConfig getConfig(final int version,
 		final boolean hasDepthBuffer, final int stencilBits, final boolean isRecordable) {
-
-		if (DEBUG) Log.v(TAG, "getConfig:version=" + version
-			+ ",hasDepthBuffer=" + hasDepthBuffer + ",stencilBits=" + stencilBits
-			+ ",isRecordable=" + isRecordable);
 
         int renderableType = EGL_OPENGL_ES2_BIT;
         if (version >= 3) {
@@ -862,7 +705,6 @@ import com.serenegiant.system.BuildCheck;
 			attribList[3] = 5;
 			attribList[5] = 6;
 			attribList[7] = 5;
-			attribList[9] = 0;
 			config = internalGetConfig(attribList);
 		}
 		return config;

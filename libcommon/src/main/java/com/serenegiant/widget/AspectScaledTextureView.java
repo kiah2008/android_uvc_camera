@@ -3,7 +3,7 @@ package com.serenegiant.widget;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,85 +27,35 @@ import android.util.Log;
 import android.view.TextureView;
 
 import com.serenegiant.common.R;
-import com.serenegiant.view.MeasureSpecDelegater;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
 
-/**
- * View/表示内容のスケーリング処理を追加したTextureView
- * スケーリングモードがSCALE_MODE_KEEP_ASPECTのときはViewのサイズ変更を行う
- */
-public class AspectScaledTextureView extends TransformTextureView
-	implements TextureView.SurfaceTextureListener,
-		IScaledView {
-
-	private static final boolean DEBUG = false;	// set false on production
+public class AspectScaledTextureView extends TextureView
+	implements TextureView.SurfaceTextureListener, IAspectRatioView, IScaledView, ITextureView {
+	
 	private static final String TAG = AspectScaledTextureView.class.getSimpleName();
 
 	protected final Matrix mImageMatrix = new Matrix();
-	/**
-	 * スケールモード
-	 */
-	@ScaleMode
-	private int mScaleMode;
-	/**
-	 * 表示内容のアスペクト比 (幅 ÷ 高さ)
-	 * 0以下なら無視される
-	 */
-	private double mRequestedAspect;
-	/**
-	 * スケールモードがキープアスペクトの場合にViewのサイズをアスペクト比に合わせて変更するかどうか
-	 */
-	private boolean mNeedResizeToKeepAspect;
-	/**
-	 * プレビュー表示用のSurfaceTextureが存在しているかどうか
-	 */
-	private volatile boolean mHasSurface;
-	/**
-	 * SurfaceTextureListenerを自View内で使うため外部からセットされた
-	 * SurfaceTextureListenerは自前で保持＆呼び出す
-	 */
-	private SurfaceTextureListener mListener;
+	private int mScaleMode = SCALE_MODE_KEEP_ASPECT;
+	private double mRequestedAspect = -1.0;		// initially use default window size
+	private volatile boolean mHasSurface;	// プレビュー表示用のSurfaceTextureが存在しているかどうか
+	private final Set<SurfaceTextureListener> mListeners = new CopyOnWriteArraySet<SurfaceTextureListener>();
 
-	/**
-	 * コンストラクタ
-	 * @param context
-	 */
-	public AspectScaledTextureView(@NonNull final Context context) {
+	public AspectScaledTextureView(final Context context) {
 		this(context, null, 0);
 	}
 
-	/**
-	 * コンストラクタ
-	 * @param context
-	 * @param attrs
-	 */
-	public AspectScaledTextureView(@NonNull final Context context,
-		@Nullable final AttributeSet attrs) {
-
+	public AspectScaledTextureView(final Context context, final AttributeSet attrs) {
 		this(context, attrs, 0);
 	}
 
-	/**
-	 * コンストラクタ
-	 * @param context
-	 * @param attrs
-	 * @param defStyleAttr
-	 */
-	public AspectScaledTextureView(@NonNull final Context context,
-		@Nullable final AttributeSet attrs, final int defStyleAttr) {
-
+	public AspectScaledTextureView(final Context context, final AttributeSet attrs, final int defStyleAttr) {
 		super(context, attrs, defStyleAttr);
-		final TypedArray a = context.getTheme().obtainStyledAttributes(attrs,
-			R.styleable.IScaledView, defStyleAttr, 0);
+		final TypedArray a = context.getTheme().obtainStyledAttributes(attrs, R.styleable.AspectScaledTextureView, defStyleAttr, 0);
 		try {
-			mRequestedAspect = a.getFloat(
-				R.styleable.IScaledView_aspect_ratio, -1.0f);
-			mScaleMode = a.getInt(
-				R.styleable.IScaledView_scale_mode, SCALE_MODE_KEEP_ASPECT);
-			mNeedResizeToKeepAspect = a.getBoolean(
-				R.styleable.IScaledView_resize_to_keep_aspect, true);
+			mRequestedAspect = a.getFloat(R.styleable.AspectScaledTextureView_aspect_ratio, -1.0f);
+			mScaleMode = a.getInt(R.styleable.AspectScaledTextureView_scale_mode, SCALE_MODE_KEEP_ASPECT);
 		} finally {
 			a.recycle();
 		}
@@ -118,21 +68,43 @@ public class AspectScaledTextureView extends TransformTextureView
 	@Override
 	protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
 //		if (DEBUG) Log.v(TAG, "onMeasure:mRequestedAspect=" + mRequestedAspect);
-		final MeasureSpecDelegater.MeasureSpec spec
-			= MeasureSpecDelegater.onMeasure(this,
-				mRequestedAspect, mScaleMode, mNeedResizeToKeepAspect,
-				widthMeasureSpec, heightMeasureSpec);
-		super.onMeasure(spec.widthMeasureSpec, spec.heightMeasureSpec);
+// 		要求されたアスペクト比が負の時(初期生成時)は何もしない
+		if (mRequestedAspect > 0 && (mScaleMode == SCALE_MODE_KEEP_ASPECT)) {
+			int initialWidth = MeasureSpec.getSize(widthMeasureSpec);
+			int initialHeight = MeasureSpec.getSize(heightMeasureSpec);
+			final int horizPadding = getPaddingLeft() + getPaddingRight();
+			final int vertPadding = getPaddingTop() + getPaddingBottom();
+			initialWidth -= horizPadding;
+			initialHeight -= vertPadding;
+
+			final double viewAspectRatio = (double)initialWidth / initialHeight;
+			final double aspectDiff = mRequestedAspect / viewAspectRatio - 1;
+
+			// 計算誤差が生じる可能性が有るので指定した値との差が小さければそのままにする
+			if (Math.abs(aspectDiff) > 0.01) {
+				if (aspectDiff > 0) {
+					// 幅基準で高さを決める
+					initialHeight = (int) (initialWidth / mRequestedAspect);
+				} else {
+					// 高さ基準で幅を決める
+					initialWidth = (int) (initialHeight * mRequestedAspect);
+				}
+				initialWidth += horizPadding;
+				initialHeight += vertPadding;
+				widthMeasureSpec = MeasureSpec.makeMeasureSpec(initialWidth, MeasureSpec.EXACTLY);
+				heightMeasureSpec = MeasureSpec.makeMeasureSpec(initialHeight, MeasureSpec.EXACTLY);
+			}
+		}
+
+		super.onMeasure(widthMeasureSpec, heightMeasureSpec);
 	}
 
 	private int prevWidth = -1;
 	private int prevHeight = -1;
 	@Override
-	protected void onLayout(final boolean changed,
-		final int left, final int top, final int right, final int bottom) {
-
+	protected void onLayout(final boolean changed, final int left, final int top, final int right, final int bottom) {
 		super.onLayout(changed, left, top, right, bottom);
-		if (DEBUG) Log.v(TAG, String.format("onLayout:(%dx%d)", getWidth(), getHeight()));
+//		if (DEBUG) Log.v(TAG, "onLayout:width=" + getWidth() + ",height=" + getHeight());
 //		if view size(width|height) is zero(the view size not decided yet)
 		if (getWidth() == 0 || getHeight() == 0) return;
 		if (prevWidth != getWidth() || prevHeight != getHeight()) {
@@ -143,66 +115,89 @@ public class AspectScaledTextureView extends TransformTextureView
 		init();
 	}
 	
+	private SurfaceTextureListener mSurfaceTextureListener;
 	/**
 	 * @param listener
 	 */
 	@Override
 	public final void setSurfaceTextureListener(final SurfaceTextureListener listener) {
-		mListener = listener;
-		// 自分自身を登録してあるのでsuper#setSurfaceTextureListenerは呼ばない
+		unregister(mSurfaceTextureListener);
+		mSurfaceTextureListener = listener;
+		register(listener);
 	}
-
+	
 	@Override
-	public SurfaceTextureListener getSurfaceTextureListener() {
-		// 自分自身を登録してあるのでsuper#getSurfaceTextureListenerは呼ばない
-		return mListener;
+	public void register(final SurfaceTextureListener listener) {
+		if (listener != null) {
+			mListeners.add(listener);
+		}
+	}
+	
+	@Override
+	public void unregister(final SurfaceTextureListener listener) {
+		mListeners.remove(listener);
 	}
 
 	protected void onResize(final int width, final int height) {
 	}
 
-	public boolean hasSurface() {
-		return mHasSurface;
-	}
-
 //================================================================================
-// SurfaceTextureListener
+// IAspectRatioView
 //================================================================================
 	@Override
-	public void onSurfaceTextureAvailable(@NonNull final SurfaceTexture surface, final int width, final int height) {
+	public void onSurfaceTextureAvailable(final SurfaceTexture surface, final int width, final int height) {
 		mHasSurface = true;
 		init();
-		if (mListener != null) {
-			mListener.onSurfaceTextureAvailable(surface, width, height);
+		for (final SurfaceTextureListener listener: mListeners) {
+			try {
+				listener.onSurfaceTextureAvailable(surface, width, height);
+			} catch (final Exception e) {
+				mListeners.remove(listener);
+				Log.w(TAG, e);
+			}
 		}
 	}
 
 	@Override
-	public void onSurfaceTextureSizeChanged(@NonNull final SurfaceTexture surface, final int width, final int height) {
-		if (mListener != null) {
-			mListener.onSurfaceTextureSizeChanged(surface, width, height);
+	public void onSurfaceTextureSizeChanged(final SurfaceTexture surface, final int width, final int height) {
+		for (final SurfaceTextureListener listener: mListeners) {
+			try {
+				listener.onSurfaceTextureSizeChanged(surface, width, height);
+			} catch (final Exception e) {
+				mListeners.remove(listener);
+				Log.w(TAG, e);
+			}
 		}
 	}
 
 	@Override
-	public boolean onSurfaceTextureDestroyed(@NonNull final SurfaceTexture surface) {
+	public boolean onSurfaceTextureDestroyed(final SurfaceTexture surface) {
 		mHasSurface = false;
-		if (mListener != null) {
-			mListener.onSurfaceTextureDestroyed(surface);
+		for (final SurfaceTextureListener listener: mListeners) {
+			try {
+				listener.onSurfaceTextureDestroyed(surface);
+			} catch (final Exception e) {
+				mListeners.remove(listener);
+				Log.w(TAG, e);
+			}
 		}
 		return false;
 	}
 
-	@Deprecated
 	@Override
-	public void onSurfaceTextureUpdated(@NonNull final SurfaceTexture surface) {
-		if (mListener != null) {
-			mListener.onSurfaceTextureUpdated(surface);
+	public void onSurfaceTextureUpdated(final SurfaceTexture surface) {
+		for (final SurfaceTextureListener listener: mListeners) {
+			try {
+				listener.onSurfaceTextureUpdated(surface);
+			} catch (final Exception e) {
+				mListeners.remove(listener);
+				Log.w(TAG, e);
+			}
 		}
 	}
 
 //================================================================================
-// IScaledView
+// IAspectRatioView
 //================================================================================
 	/**
 	 * アスペクト比を設定する。アスペクト比=<code>幅 / 高さ</code>.
@@ -226,26 +221,21 @@ public class AspectScaledTextureView extends TransformTextureView
 		return mRequestedAspect;
 	}
 
+//================================================================================
+// IScaledView
+//================================================================================
+
 	@Override
-	public void setScaleMode(@ScaleMode final int scale_mode) {
+	public void setScaleMode(final int scale_mode) {
 		if (mScaleMode != scale_mode) {
 			mScaleMode = scale_mode;
 			requestLayout();
 		}
 	}
 
-	@ScaleMode
 	@Override
 	public int getScaleMode() {
 		return mScaleMode;
-	}
-
-	@Override
-	public void setNeedResizeToKeepAspect(final boolean keepAspect) {
-		if (mNeedResizeToKeepAspect != keepAspect) {
-			mNeedResizeToKeepAspect = keepAspect;
-			requestLayout();
-		}
 	}
 
 //================================================================================
@@ -260,42 +250,29 @@ public class AspectScaledTextureView extends TransformTextureView
 		// (that can get ImageView#getDrawable)
 		// therefore update the image size from its Drawable
 		// set limit rectangle that the image can move
-		final int viewWidth = getWidth();
-		final int viewHeight = getHeight();
+		final int view_width = getWidth();
+		final int view_height = getHeight();
 		// apply matrix
 		mImageMatrix.reset();
 		switch (mScaleMode) {
+		case SCALE_MODE_KEEP_ASPECT:
 		case SCALE_MODE_STRETCH_TO_FIT:
 			// 何もしない
 			break;
-		case SCALE_MODE_KEEP_ASPECT:
 		case SCALE_MODE_CROP: // FIXME もう少し式を整理できそう
-			final double contentWidth = mRequestedAspect > 0 ? mRequestedAspect * viewHeight : viewHeight;
-			final double contentHeight = viewHeight;
-			if (DEBUG) Log.v(TAG,
-				String.format("init:" +
-				 	"view(%dx%d),content(%.0fx%.0f),aspect=%f",
-					viewWidth, viewHeight,
-					contentWidth, contentHeight,
-					mRequestedAspect));
-			final double scaleX = viewWidth / contentWidth;
-			final double scaleY = viewHeight / contentHeight;
-			final double scale = (mScaleMode == SCALE_MODE_CROP)
-				? Math.max(scaleX,  scaleY)		// SCALE_MODE_CROP
-				: Math.min(scaleX, scaleY);		// SCALE_MODE_KEEP_ASPECT
-			final double width = scale * contentWidth;
-			final double height = scale * contentHeight;
-			if (DEBUG) Log.v(TAG, String.format("init:scaleMode=%d,size(%1.0f,%1.0f),scale(%f,%f)→%f,mat(%f,%f)",
-				mScaleMode,
-				width, height,
-				scaleX, scaleY, scale,
-				width / viewWidth, height / viewHeight));
-			mImageMatrix.postScale(
-				(float)(width / viewWidth), (float)(height / viewHeight),
-				viewWidth / 2.0f, viewHeight / 2.0f);
+			final double video_width = mRequestedAspect * view_height;
+			final double video_height = view_height;
+			final double scale_x = view_width / video_width;
+			final double scale_y = view_height / video_height;
+			final double scale = Math.max(scale_x,  scale_y);	// SCALE_MODE_CROP
+//			final double scale = Math.min(scale_x, scale_y);	// SCALE_MODE_KEEP_ASPECT
+			final double width = scale * video_width;
+			final double height = scale * video_height;
+//			Log.v(TAG, String.format("size(%1.0f,%1.0f),scale(%f,%f),mat(%f,%f)",
+//				width, height, scale_x, scale_y, width / view_width, height / view_height));
+			mImageMatrix.postScale((float)(width / view_width), (float)(height / view_height), view_width / 2, view_height / 2);
 			break;
 		}
-		if (DEBUG) Log.v(TAG, "init:" + mImageMatrix);
 		setTransform(mImageMatrix);
 	}
 

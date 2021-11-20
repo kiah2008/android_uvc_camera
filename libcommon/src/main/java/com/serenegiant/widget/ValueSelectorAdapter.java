@@ -3,7 +3,7 @@ package com.serenegiant.widget;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ package com.serenegiant.widget;
  *  limitations under the License.
 */
 
-import android.annotation.SuppressLint;
 import android.content.Context;
 import androidx.annotation.LayoutRes;
 import androidx.annotation.NonNull;
@@ -31,7 +30,7 @@ import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.TextView;
 
-import com.serenegiant.view.ViewUtils;
+import com.serenegiant.common.R;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -92,7 +91,22 @@ public class ValueSelectorAdapter extends ArrayAdapter<ValueSelectorAdapter.Valu
 			final TextView label;
 			rootView = mInflater.inflate(mLayoutId, parent, false);
 			final ViewHolder holder = new ViewHolder();
-			holder.titleTv = ViewUtils.findTitleView(rootView);
+			if (rootView instanceof TextView) {
+				holder.titleTv = (TextView)rootView;
+			} else {
+				try {
+					holder.titleTv = rootView.findViewById(mTitleId);
+				} catch (final Exception e) {
+					holder.titleTv = null;
+				}
+				if (holder.titleTv == null) {
+					try {
+						holder.titleTv = rootView.findViewById(R.id.title);
+					} catch (final Exception e) {
+						holder.titleTv = null;
+					}
+				}
+			}
 			rootView.setOnTouchListener(mOnTouchListener);
 			rootView.setTag(holder);
 		}
@@ -125,8 +139,7 @@ public class ValueSelectorAdapter extends ArrayAdapter<ValueSelectorAdapter.Valu
 		return position;
 	}
 
-	private final View.OnTouchListener mOnTouchListener = new View.OnTouchListener() {
-		@SuppressLint("ClickableViewAccessibility")
+	private View.OnTouchListener mOnTouchListener = new View.OnTouchListener() {
 		@Override
 		public boolean onTouch(final View v, final MotionEvent event) {
 			if (mListener != null) {

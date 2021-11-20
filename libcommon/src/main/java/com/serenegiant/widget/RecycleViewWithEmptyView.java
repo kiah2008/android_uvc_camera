@@ -3,7 +3,7 @@ package com.serenegiant.widget;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,11 +31,6 @@ import android.view.View;
 
 import com.serenegiant.common.R;
 
-/**
- * 表示内容が空のときに代わりに指定したViewを表示する機能を追加したRecyclerView実装
- * RecyclerViewWithEmptyViewを使うこと
- */
-@Deprecated
 public class RecycleViewWithEmptyView extends RecyclerView {
 	private static final boolean DEBUG = false;	// FIXME set false on production
 	private static final String TAG = RecycleViewWithEmptyView.class.getSimpleName();
@@ -60,7 +55,7 @@ public class RecycleViewWithEmptyView extends RecyclerView {
 		Drawable divider = null;
 		if (attrs != null) {
 			int defStyleRes = 0;
-			final TypedArray attribs = context.getTheme().obtainStyledAttributes(
+			final TypedArray attribs = context.obtainStyledAttributes(
 				attrs, R.styleable.RecycleViewWithEmptyView, defStyle, defStyleRes);
 			try {
 				if (attribs.hasValue(R.styleable.RecycleViewWithEmptyView_listDivider)) {

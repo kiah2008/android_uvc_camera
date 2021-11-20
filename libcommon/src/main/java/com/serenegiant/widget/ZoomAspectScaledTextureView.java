@@ -3,7 +3,7 @@ package com.serenegiant.widget;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,41 +22,81 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Matrix;
-import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.SurfaceTexture;
 import android.os.SystemClock;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.MotionEvent;
+import android.view.ViewConfiguration;
 
 import com.serenegiant.common.R;
 import com.serenegiant.glutils.IRendererCommon;
-import com.serenegiant.view.ViewUtils;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-
-import static com.serenegiant.view.ViewTransformDelegater.*;
-
-/**
- * FIXME 拡大縮小回転移動処理をDelegaterへ分けたい
- * FIXME ViewTransformDelegaterを使うように変更する？AspectScaledTextureViewを継承しているから難しそう
- */
-public class ZoomAspectScaledTextureView
-	extends AspectScaledTextureView implements IRendererCommon {
-
-	private static final boolean DEBUG = false;	// TODO for debugging
-	private static final String TAG = ZoomAspectScaledTextureView.class.getSimpleName();
-
+public class ZoomAspectScaledTextureView extends AspectScaledTextureView
+	implements IRendererCommon {
+	private boolean mHandleTouchEvent;
+	// constants
 	/**
-	 * タッチ操作の有効無効設定
+	 * State: idle
 	 */
-	@TouchMode
-	private int mHandleTouchEvent;
-	private float mManualScale = 1.0f;
-	private float mManualRotate = Float.MAX_VALUE;
+	private static final int STATE_NON = 0;
+	/**
+	 * State: 待機中
+	 */
+	private static final int STATE_WAITING = 1;
+	/**
+	 * State: 平行移動中
+	*/
+	private static final int STATE_DRAGING = 2;
+	/**
+	 * State: 拡大縮小・回転開始待ち
+	 */
+	private static final int STATE_CHECKING = 3;
+	/**
+	 * State: 拡大縮小中
+	*/
+	private static final int STATE_ZOOMING = 4;
+	/**
+	 * State: 回転中
+	 */
+	private static final int STATE_ROTATING = 5;
+	/**
+	 * 最大拡大率
+	*/
+	private static final float DEFAULT_MAX_SCALE = 8.f;
+	/**
+	 * 最小縮小率
+	 */
+	private static final float DEFAULT_MIN_SCALE = 0.8f;
+	/**
+	 * ズーム無し時の初期拡大縮小率
+	*/
+	private static final float DEFAULT_SCALE = 1.f;
+	/**
+	 * ズーム/回転モードに入るときの最小タッチ距離
+	 */
+	private static final float MIN_DISTANCE = 15.f;
+	private static final float MIN_DISTANCE_SQUARE = MIN_DISTANCE * MIN_DISTANCE;
+	/**
+	 * 移動時に画面からはみ出して見えなくなってしまうのを防ぐための閾値
+	 */
+	private static final float MOVE_LIMIT_RATE = 0.2f;	// =Viewの幅/高さのそれぞれ20%
+	/**
+     * 回転開始待ち時間(マルチタッチ時)またはリセット待機時間(シングルタッチ)、ミリ秒単位
+	 */
+    private static final int CHECK_TIMEOUT
+    	= ViewConfiguration.getTapTimeout() + ViewConfiguration.getLongPressTimeout();
+    private static final int TAP_TIMEOUT = ViewConfiguration.getTapTimeout() * 2;
+    private static final int LONG_PRESS_TIMEOUT = ViewConfiguration.getLongPressTimeout();
+    /**
+	 * ラディアンを度に変換するための係数
+	 */
+	private static final float TO_DEGREE = 57.2957795130823f;	// = (1.0f / Math.PI) * 180.0f;
+	/**
+	 * 回転しているかどうかの閾値
+	 */
+	private static final float EPS = 0.1f;
 
 	/**
 	 * 拡大縮小回転移動のための射影行列のデフォルト値
@@ -81,16 +121,16 @@ public class ZoomAspectScaledTextureView
 	/**
 	 * 映像を移動可能な領域を示すLineSegment配列
 	 */
-	private final ViewUtils.LineSegment[] mLimitSegments = new ViewUtils.LineSegment[4];
+	private final LineSegment[] mLimitSegments = new LineSegment[4];
 	/**
 	 * 表示されるViewの実際のサイズ
 	 */
-	private final RectF mContentRect = new RectF();
+	private final RectF mImageRect = new RectF();
 	/**
 	 * scaled and moved and rotated corner coordinates of image
 	 * [(left,top),(right,top),(right,bottom),(left.bottom)]
 	 */
-	private final float[] mTransCoords = new float[8];
+	private final float[] mTrans = new float[8];
 	/**
 	 * タッチイベントのID
 	 */
@@ -107,10 +147,6 @@ public class ZoomAspectScaledTextureView
 	 * 拡大縮小・回転時に使用するピボット座標
 	 */
 	private float mPivotX, mPivotY;
-	/**
-	 * 平行移動量
-	 */
-	private float mTransX, mTransY;
 	/**
 	 * distance between touch points when start multi touch, for calculating zooming scale
 	 */
@@ -129,11 +165,10 @@ public class ZoomAspectScaledTextureView
 	 */
 	private float mMinScale = DEFAULT_MIN_SCALE;
 	/**
-	 * current state, -1/STATE_NON/STATE_WAITING/STATE_DRAGGING/STATE_CHECKING
+	 * current state, -1/STATE_NON/STATE_WATING/STATE_DRAGING/STATE_CHECKING
 	 * 					/STATE_ZOOMING/STATE_ROTATING
 	 */
-	@State
-	private int mState = STATE_NON;
+	private int mState = -1;
 	/**
 	 * Runnable instance to wait starting image reset
 	 */
@@ -146,56 +181,29 @@ public class ZoomAspectScaledTextureView
 	@MirrorMode
     private int mMirrorMode = MIRROR_NORMAL;
 
-	/**
-	 * コンストラクタ
-	 * @param context
-	 */
 	public ZoomAspectScaledTextureView(final Context context) {
 		this(context, null, 0);
 	}
 
-	/**
-	 * コンストラクタ
-	 * @param context
-	 * @param attrs
-	 */
 	public ZoomAspectScaledTextureView(final Context context, final AttributeSet attrs) {
 		this(context, attrs, 0);
 	}
 
-	/**
-	 * コンストラクタ
-	 * @param context
-	 * @param attrs
-	 * @param defStyleAttr
-	 */
 	public ZoomAspectScaledTextureView(final Context context, final AttributeSet attrs, final int defStyleAttr) {
 		super(context, attrs, defStyleAttr);
-		if (DEBUG) Log.v(TAG, "コンストラクタ");
-		final TypedArray a = context.getTheme().obtainStyledAttributes(
-				attrs, R.styleable.ZoomAspectScaledTextureView, defStyleAttr, 0);
+		final TypedArray a = context.getTheme().obtainStyledAttributes(attrs, R.styleable.ZoomAspectScaledTextureView, defStyleAttr, 0);
 		try {
-			// getIntegerは整数じゃなければUnsupportedOperationExceptionを投げる
-			mHandleTouchEvent = a.getInteger(R.styleable.ZoomAspectScaledTextureView_handle_touch_event, TOUCH_ENABLED_ALL);
-		} catch (final UnsupportedOperationException e) {
-			Log.d(TAG, TAG, e);
-			final boolean b = a.getBoolean(R.styleable.ZoomAspectScaledTextureView_handle_touch_event, true);
-			mHandleTouchEvent = b ? TOUCH_ENABLED_ALL : TOUCH_DISABLED;
+			mHandleTouchEvent = a.getBoolean(R.styleable.ZoomAspectScaledTextureView_handle_touch_event, true);
 		} finally {
 			a.recycle();
 		}
 	}
 
-	@SuppressLint({"ClickableViewAccessibility", "SwitchIntDef"})
+	@SuppressLint("ClickableViewAccessibility")
 	@Override
 	public boolean onTouchEvent(final MotionEvent event) {
-		if (DEBUG) Log.v(TAG, "onTouchEvent:");
 
-		if (handleOnTouchEvent(event)) {
-			return true;	// 処理済み
-		}
-
-		if (mHandleTouchEvent == TOUCH_DISABLED) {
+		if (!mHandleTouchEvent) {
 			return super.onTouchEvent(event);
 		}
 
@@ -207,13 +215,13 @@ public class ZoomAspectScaledTextureView
 			startWaiting(event);
 			return true;
 		case MotionEvent.ACTION_POINTER_DOWN:
-		{	// マルチタッチ時の処理
+		{
+			// start multi touch, zooming/rotating
 			switch (mState) {
 			case STATE_WAITING:
-				// 最初のマルチタッチ → 拡大縮小・回転操作待機開始
 				removeCallbacks(mWaitImageReset);
 				// pass through
-			case STATE_DRAGGING:
+			case STATE_DRAGING:
 				if (event.getPointerCount() > 1) {
 					startCheck(event);
 					return true;
@@ -227,22 +235,18 @@ public class ZoomAspectScaledTextureView
 			// moving with single and multi touch
 			switch (mState) {
 			case STATE_WAITING:
-				if (((mHandleTouchEvent & TOUCH_ENABLED_MOVE) == TOUCH_ENABLED_MOVE)
-					&& checkTouchMoved(event)) {
-
+				if (checkTouchMoved(event)) {
 					removeCallbacks(mWaitImageReset);
-					setState(STATE_DRAGGING);
+					setState(STATE_DRAGING);
 					return true;
 				}
 				break;
-			case STATE_DRAGGING:
+			case STATE_DRAGING:
 				if (processDrag(event))
 					return true;
 				break;
 			case STATE_CHECKING:
-				if (checkTouchMoved(event)
-					&& ((mHandleTouchEvent & TOUCH_ENABLED_ZOOM) == TOUCH_ENABLED_ZOOM)) {
-
+				if (checkTouchMoved(event)) {
 					startZoom(event);
 					return true;
 				}
@@ -279,23 +283,13 @@ public class ZoomAspectScaledTextureView
 		return super.onTouchEvent(event);
 	}
 
-	protected boolean handleOnTouchEvent(final MotionEvent event) {
-//		if (DEBUG) Log.v(TAG, "handleOnTouchEvent:" + event);
-		return false;
-	}
-
-	protected void onReset() {
-		if (DEBUG) Log.v(TAG, "onReset");
-	}
-
 //================================================================================
 	/**
 	 * TextureViewに関連付けられたSurfaceTextureが利用可能になった時の処理
 	 */
 	@Override
-	public void onSurfaceTextureAvailable(@NonNull final SurfaceTexture surface, final int width, final int height) {
+	public void onSurfaceTextureAvailable(final SurfaceTexture surface, final int width, final int height) {
 		super.onSurfaceTextureAvailable(surface, width, height);
-		if (DEBUG) Log.v(TAG, String.format("onSurfaceTextureAvailable:(%dx%d)", width, height));
 		setMirror(MIRROR_NORMAL);	// デフォルトだから適用しなくていいけど
 	}
 
@@ -303,9 +297,8 @@ public class ZoomAspectScaledTextureView
 	 * SurfaceTextureのバッファーのサイズが変更された時の処理
 	 */
 	@Override
-	public void onSurfaceTextureSizeChanged(@NonNull final SurfaceTexture surface, final int width, final int height) {
+	public void onSurfaceTextureSizeChanged(final SurfaceTexture surface, final int width, final int height) {
 		super.onSurfaceTextureSizeChanged(surface, width, height);
-		if (DEBUG) Log.v(TAG, String.format("onSurfaceTextureSizeChanged:(%dx%d)", width, height));
 		applyMirrorMode();
 	}
 
@@ -324,7 +317,6 @@ public class ZoomAspectScaledTextureView
 //================================================================================
 	@Override
 	public void setMirror(@MirrorMode final int mirror) {
-		if (DEBUG) Log.v(TAG, "setMirror" + mirror);
 		if (mMirrorMode != mirror) {
 			mMirrorMode = mirror;
 			applyMirrorMode();
@@ -337,65 +329,47 @@ public class ZoomAspectScaledTextureView
 		return mMirrorMode;
 	}
 	
-	/**
-	 * タッチ操作の有効無効設定
-	 * @param enabled
-	 */
-	public void setEnableHandleTouchEvent(@TouchMode final int enabled) {
-		if (DEBUG) Log.v(TAG, "setEnableHandleTouchEvent" + enabled);
+	public void setEnableHandleTouchEvent(final boolean enabled) {
 		mHandleTouchEvent = enabled;
 	}
 
 	public void reset() {
 		init();
-		onReset();
 	}
 
 //================================================================================
 	@Override
 	protected void init() {
-		if (DEBUG) Log.v(TAG, "init:");
 		// set the initial state to idle, get and save the internal Matrix.
-		mState = STATE_RESET; setState(STATE_NON);
+		mState = -1; setState(STATE_NON);
 		// get the internally calculated zooming scale to fit the view
 		mMinScale = DEFAULT_MIN_SCALE; // getMatrixScale();
 		mCurrentDegrees = 0.f;
-		mIsRotating = Math.abs(((int)(mCurrentDegrees / 360.f)) * 360.f - mCurrentDegrees) > ViewUtils.EPS;
+		mIsRotating = Math.abs(((int)(mCurrentDegrees / 360.f)) * 360.f - mCurrentDegrees) > EPS;
 
 		// update image size
 		// current implementation of ImageView always hold its image as a Drawable
 		// (that can get ImageView#getDrawable)
 		// therefore update the image size from its Drawable
 		// set limit rectangle that the image can move
+		final int view_width = getWidth();
+		final int view_height = getHeight();
 		final Rect tmp = new Rect();
 		getDrawingRect(tmp);
 		mLimitRect.set(tmp);
-		// update image size
-		final RectF bounds = getContentBounds();
-		if ((bounds != null) && !bounds.isEmpty()) {
-			mContentRect.set(bounds);
-		} else {
-			mContentRect.set(mLimitRect);
-		}
-		mLimitRect.inset((MOVE_LIMIT_RATE * getWidth()), (MOVE_LIMIT_RATE * getHeight()));
+		mLimitRect.inset((int)(MOVE_LIMIT_RATE * view_width), (int)(MOVE_LIMIT_RATE * view_height));
 		mLimitSegments[0] = null;
-		mTransX = mTransY = 0.0f;
+		mImageRect.set(0, 0, tmp.width(), tmp.height());
 		super.init();
 		mDefaultMatrix.set(mImageMatrix);
 	}
 
-	@Nullable
-	protected RectF getContentBounds() {
-		if (DEBUG) Log.v(TAG, "getContentBounds:");
-		return null;
-	}
-
 	/**
 	 * set current state, get and save the internal Matrix int super class
-	 * @param state:	-1/STATE_NON/STATE_DRAGGING/STATE_CHECKING
+	 * @param state:	-1/STATE_NON/STATE_DRAGING/STATECHECKING
 	 * 					/STATE_ZOOMING/STATE_ROTATING
 	 */
-	private final void setState(@State final int state) {
+	private final void setState(final int state) {
 		if (mState != state) {
 			mState = state;
 			// get and save the internal Matrix of super class
@@ -431,48 +405,48 @@ public class ZoomAspectScaledTextureView
 
 		// calculate the corner coordinates of image applied matrix
 		// [(left,top),(right,top),(right,bottom),(left.bottom)]
-		mTransCoords[0] = mTransCoords[6] = mContentRect.left;
-		mTransCoords[1] = mTransCoords[3] = mContentRect.top;
-		mTransCoords[5] = mTransCoords[7] = mContentRect.bottom;
-		mTransCoords[2] = mTransCoords[4] = mContentRect.right;
-		mImageMatrix.mapPoints(mTransCoords);
+		mTrans[0] = mTrans[6] = mImageRect.left;
+		mTrans[1] = mTrans[3] = mImageRect.top;
+		mTrans[5] = mTrans[7] = mImageRect.bottom;
+		mTrans[2] = mTrans[4] = mImageRect.right;
+		mImageMatrix.mapPoints(mTrans);
 		for (int i = 0; i < 8; i += 2) {
-			mTransCoords[i] += dx;
-			mTransCoords[i+1] += dy;
+			mTrans[i] += dx;
+			mTrans[i+1] += dy;
 		}
 		// check whether the image can move
 		// if we can ignore rotating, the limit check is more easy...
 		boolean canMove
 			// check whether at lease one corner of image bounds is in the limitRect
-			 = mLimitRect.contains(mTransCoords[0], mTransCoords[1])
-			|| mLimitRect.contains(mTransCoords[2], mTransCoords[3])
-			|| mLimitRect.contains(mTransCoords[4], mTransCoords[5])
-			|| mLimitRect.contains(mTransCoords[6], mTransCoords[7])
+			 = mLimitRect.contains(mTrans[0], mTrans[1])
+			|| mLimitRect.contains(mTrans[2], mTrans[3])
+			|| mLimitRect.contains(mTrans[4], mTrans[5])
+			|| mLimitRect.contains(mTrans[6], mTrans[7])
 			// check whether at least one corner of limitRect is in the image bounds
-			|| ViewUtils.ptInPoly(mLimitRect.left, mLimitRect.top, mTransCoords)
-			|| ViewUtils.ptInPoly(mLimitRect.right, mLimitRect.top, mTransCoords)
-			|| ViewUtils.ptInPoly(mLimitRect.right, mLimitRect.bottom, mTransCoords)
-			|| ViewUtils.ptInPoly(mLimitRect.left, mLimitRect.bottom, mTransCoords);
+			|| ptInPoly(mLimitRect.left, mLimitRect.top, mTrans)
+			|| ptInPoly(mLimitRect.right, mLimitRect.top, mTrans)
+			|| ptInPoly(mLimitRect.right, mLimitRect.bottom, mTrans)
+			|| ptInPoly(mLimitRect.left, mLimitRect.bottom, mTrans);
 		if (!canMove) {
 			// when no corner is in, we need additional check whether at least
 			// one side of image bounds intersect with the limit rectangle
 			if (mLimitSegments[0] == null) {
-				mLimitSegments[0] = new ViewUtils.LineSegment(mLimitRect.left, mLimitRect.top, mLimitRect.right, mLimitRect.top);
-				mLimitSegments[1] = new ViewUtils.LineSegment(mLimitRect.right, mLimitRect.top, mLimitRect.right, mLimitRect.bottom);
-				mLimitSegments[2] = new ViewUtils.LineSegment(mLimitRect.right, mLimitRect.bottom, mLimitRect.left, mLimitRect.bottom);
-				mLimitSegments[3] = new ViewUtils.LineSegment(mLimitRect.left, mLimitRect.bottom, mLimitRect.left, mLimitRect.top);
+				mLimitSegments[0] = new LineSegment(mLimitRect.left, mLimitRect.top, mLimitRect.right, mLimitRect.top);
+				mLimitSegments[1] = new LineSegment(mLimitRect.right, mLimitRect.top, mLimitRect.right, mLimitRect.bottom);
+				mLimitSegments[2] = new LineSegment(mLimitRect.right, mLimitRect.bottom, mLimitRect.left, mLimitRect.bottom);
+				mLimitSegments[3] = new LineSegment(mLimitRect.left, mLimitRect.bottom, mLimitRect.left, mLimitRect.top);
 			}
-			final ViewUtils.LineSegment side = new ViewUtils.LineSegment(mTransCoords[0], mTransCoords[1], mTransCoords[2], mTransCoords[3]);
-			canMove = ViewUtils.checkIntersect(side, mLimitSegments);
+			final LineSegment side = new LineSegment(mTrans[0], mTrans[1], mTrans[2], mTrans[3]);
+			canMove = checkIntersect(side, mLimitSegments);
 			if (!canMove) {
-				side.set(mTransCoords[2], mTransCoords[3], mTransCoords[4], mTransCoords[5]);
-				canMove = ViewUtils.checkIntersect(side, mLimitSegments);
+				side.set(mTrans[2], mTrans[3], mTrans[4], mTrans[5]);
+				canMove = checkIntersect(side, mLimitSegments);
 				if (!canMove) {
-					side.set(mTransCoords[4], mTransCoords[5], mTransCoords[6], mTransCoords[7]);
-					canMove = ViewUtils.checkIntersect(side, mLimitSegments);
+					side.set(mTrans[4], mTrans[5], mTrans[6], mTrans[7]);
+					canMove = checkIntersect(side, mLimitSegments);
 					if (!canMove) {
-						side.set(mTransCoords[6], mTransCoords[7], mTransCoords[0], mTransCoords[1]);
-						canMove = ViewUtils.checkIntersect(side, mLimitSegments);
+						side.set(mTrans[6], mTrans[7], mTrans[0], mTrans[1]);
+						canMove = checkIntersect(side, mLimitSegments);
 					}
 				}
 			}
@@ -482,28 +456,26 @@ public class ZoomAspectScaledTextureView
 			// otherwise the image can not move when one side is on the border of limit rectangle.
 			// only calculate without rotation now because its calculation is to heavy when rotation applied.
 			if (!mIsRotating) {
-				final float left = Math.min(Math.min(mTransCoords[0], mTransCoords[2]), Math.min(mTransCoords[4], mTransCoords[6]));
-				final float right = Math.max(Math.max(mTransCoords[0], mTransCoords[2]), Math.max(mTransCoords[4], mTransCoords[6]));
-				final float top = Math.min(Math.min(mTransCoords[1], mTransCoords[3]), Math.min(mTransCoords[5], mTransCoords[7]));
-				final float bottom = Math.max(Math.max(mTransCoords[1], mTransCoords[3]), Math.max(mTransCoords[5], mTransCoords[7]));
+				final float left = Math.min(Math.min(mTrans[0], mTrans[2]), Math.min(mTrans[4], mTrans[6]));
+				final float right = Math.max(Math.max(mTrans[0], mTrans[2]), Math.max(mTrans[4], mTrans[6]));
+				final float top = Math.min(Math.min(mTrans[1], mTrans[3]), Math.min(mTrans[5], mTrans[7]));
+				final float bottom = Math.max(Math.max(mTrans[1], mTrans[3]), Math.max(mTrans[5], mTrans[7]));
 
 				if (right < mLimitRect.left) {
 					dx = mLimitRect.left - right;
-				} else if (left + ViewUtils.EPS > mLimitRect.right) {
-					dx = mLimitRect.right - left - ViewUtils.EPS;
+				} else if (left + EPS > mLimitRect.right) {
+					dx = mLimitRect.right - left - EPS;
 				}
 				if (bottom < mLimitRect.top) {
 					dy = mLimitRect.top - bottom;
-				} else if (top + ViewUtils.EPS > mLimitRect.bottom) {
-					dy = mLimitRect.bottom - top - ViewUtils.EPS;
+				} else if (top + EPS > mLimitRect.bottom) {
+					dy = mLimitRect.bottom - top - EPS;
 				}
 			}
 			if ((dx != 0) || (dy != 0)) {
 //				if (DEBUG) Log.v(TAG, String.format("processDrag:dx=%f,dy=%f", dx, dy));
 				// apply move
 				if (mImageMatrix.postTranslate(dx, dy)) {
-					mTransX += dx;
-					mTransY += dy;
 					// when image is really moved?
 					mImageMatrixChanged = true;
 					// apply to super class
@@ -545,12 +517,9 @@ public class ZoomAspectScaledTextureView
 			mPivotX = (mPrimaryX + mSecondX) / 2.f;
 			mPivotY = (mPrimaryY + mSecondY) / 2.f;
 			//
-			if ((mHandleTouchEvent & TOUCH_ENABLED_ROTATE) == TOUCH_ENABLED_ROTATE) {
-				if (mStartCheckRotate == null) {
-					mStartCheckRotate = new StartCheckRotate();
-				}
-				postDelayed(mStartCheckRotate, CHECK_TIMEOUT);
-			}
+			if (mStartCheckRotate == null)
+				mStartCheckRotate = new StartCheckRotate();
+			postDelayed(mStartCheckRotate, CHECK_TIMEOUT);
 			setState(STATE_CHECKING); 		// start zoom/rotation check
 		}
 	}
@@ -652,7 +621,7 @@ public class ZoomAspectScaledTextureView
 			// restore the Matrix
 			restoreMatrix();
 			mCurrentDegrees = calcAngle(event);
-			mIsRotating = Math.abs(((int)(mCurrentDegrees / 360.f)) * 360.f - mCurrentDegrees) > ViewUtils.EPS;
+			mIsRotating = Math.abs(((int)(mCurrentDegrees / 360.f)) * 360.f - mCurrentDegrees) > EPS;
 			if (mIsRotating && mImageMatrix.postRotate(mCurrentDegrees, mPivotX, mPivotY)) {
 				// when Matrix is changed
 				mImageMatrixChanged = true;
@@ -688,10 +657,156 @@ public class ZoomAspectScaledTextureView
 			final float y1 = event.getY(ix1) - event.getY(ix0);
 			//
 			final double s = (x0 * x0 + y0 * y0) * (x1 * x1 + y1 * y1);
-			final double cos = ViewUtils.dotProduct(x0, y0, x1, y1) / Math.sqrt(s);
-			angle = ViewUtils.TO_DEGREE * (float)Math.acos(cos) * Math.signum(ViewUtils.crossProduct(x0, y0, x1, y1));
+			final double cos = dotProduct(x0, y0, x1, y1) / Math.sqrt(s);
+			angle = TO_DEGREE * (float)Math.acos(cos) * Math.signum(crossProduct(x0, y0, x1, y1));
 		}
 		return angle;
+	}
+
+	private static final float dotProduct(final float x0, final float y0, final float x1, final float y1) {
+		return x0 * x1 + y0 * y1;
+	}
+
+	private static final float crossProduct(final float x0, final float y0, final float x1, final float y1) {
+		return x0 * y1 - x1 * y0;
+	}
+
+	private static final float crossProduct(final Vector v1, final Vector v2) {
+		return v1.x * v2.y - v2.x * v1.y;
+	}
+
+	/**
+	 * check whether the point is in the clockwise 2D polygon
+	 * @param x
+	 * @param y
+	 * @param poly
+	 * @return
+	 */
+	private static final boolean ptInPoly(final float x, final float y, final float[] poly) {
+
+		final int n = poly.length & 0x7fffffff;
+		// minimum 3 points(3 pair of x/y coordinates) need to calculate >> length >= 6
+		if (n < 6) return false;
+		boolean result = true;
+		final Vector v1 = new Vector();
+		final Vector v2 = new Vector();
+		for (int i = 0; i < n; i += 2) {
+			v1.set(x, y).dec(poly[i], poly[i + 1]);
+			if (i + 2 < n) v2.set(poly[i + 2], poly[i + 3]);
+			else v2.set(poly[0], poly[1]);
+			v2.dec(poly[i], poly[i + 1]);
+			if (crossProduct(v1, v2) > 0) {
+//				if (DEBUG) Log.v(TAG, "pt is outside of a polygon:");
+				result = false;
+				break;
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * helper for intersection check etc.
+	 */
+	private static final class Vector {
+		public float x, y;
+		public Vector() {
+		}
+/*		public Vector(Vector src) {
+			set(src);
+		} */
+		public Vector(final float x, final float y) {
+			set(x, y);
+		}
+		public Vector set(final float x, final float y) {
+			this.x = x;
+			this.y = y;
+			return this;
+		}
+/*		public Vector set(Vector other) {
+			x = other.x;
+			y = other.y;
+			return this;
+		} */
+/*		public Vector add(Vector other) {
+			return new Vector(x + other.x, y + other.y);
+		} */
+/*		public Vector add(float x, float y) {
+			return new Vector(this.x + x, this.y + y);
+		} */
+/*		public Vector inc(Vector other) {
+			x += other.x;
+			y += other.y;
+			return this;
+		} */
+/*		public Vector inc(float x, float y) {
+			this.x += x;
+			this.y += y;
+			return this;
+		} */
+		public Vector sub(final Vector other) {
+			return new Vector(x - other.x, y - other.y);
+		}
+/*		public Vector sub(float x, float y) {
+			return new Vector(this.x - x, this.y - y);
+		} */
+/*		public Vector dec(Vector other) {
+			x -= other.x;
+			y -= other.y;
+			return this;
+		} */
+		public Vector dec(final float x, final float y) {
+			this.x -= x;
+			this.y -= y;
+			return this;
+		}
+	}
+
+	private static final class LineSegment {
+		public final Vector p1;
+		public final Vector p2;
+
+		public LineSegment (final float x0, final float y0, final float x1, final float y1) {
+			p1 = new Vector(x0, y0);
+			p2 = new Vector(x1, y1);
+		}
+		public LineSegment set(final float x0, final float y0, final float x1, final float y1) {
+			p1.set(x0, y0);
+			p2.set(x1,  y1);
+			return this;
+		}
+/*		@Override
+		public String toString() {
+			return String.format(Locale.US, "p1=(%f,%f),p2=(%f,%f)", p1.x, p1.y, p2.x, p2.y);
+		} */
+	}
+
+	/**
+	 * check whether line segment(seg) intersects with at least one of line segments in the array
+	 * @param seg
+	 * @param segs array of segment
+	 * @return true if line segment intersects with at least one of other line segment.
+	 */
+	private static final boolean checkIntersect(final LineSegment seg, final LineSegment[] segs) {
+		boolean result = false;
+		final int n = segs != null ? segs.length : 0;
+
+		final Vector a = seg.p2.sub(seg.p1);
+		Vector b, c, d;
+		for (int i= 0; i < n; i++) {
+			c = segs[i].p1.sub(seg.p1);
+			d = segs[i].p2.sub(seg.p1);
+			result = crossProduct(a, c) * crossProduct(a, d) < EPS;
+			if (result) {
+				b = segs[i].p2.sub(segs[i].p1);
+				c = seg.p1.sub(segs[i].p1);
+				d = seg.p2.sub(segs[i].p1);
+				result = crossProduct(b, c) * crossProduct(b, d) < EPS;
+				if (result) {
+					break;
+				}
+			}
+		}
+		return result;
 	}
 
 	/**
@@ -734,7 +849,7 @@ public class ZoomAspectScaledTextureView
 	 * ミラーモードをTextureViewに適用
 	 */
 	private void applyMirrorMode() {
-		if (DEBUG) Log.v(TAG, "applyMirrorMode");
+//		if (DEBUG) Log.v(TAG, "updateMatrix");
 		switch (mMirrorMode) {
 		case MIRROR_HORIZONTAL:
 			setScaleX(-1.0f);
@@ -779,86 +894,4 @@ public class ZoomAspectScaledTextureView
 	}
 
 //================================================================================
-	public void setManualScale(final float scale) {
-		setMatrix(mTransX, mTransY, scale, mManualRotate);
-	}
-
-	public float getManualScale() {
-		return mManualScale;
-	}
-
-	public PointF getTranslate(@NonNull final PointF result) {
-		result.set(mManualScale, mTransX);
-		return result;
-	}
-
-	public float getTranslateX() {
-		return mTransX;
-	}
-
-	public float getTranslateY() {
-		return mTransY;
-	}
-
-	public void setTranslate(final float dx, final float dy) {
-		setMatrix(dx, dy, mManualScale, mManualRotate);
-	}
-
-	public void setRotate(final float degrees) {
-		setMatrix(mTransX, mTransY, mManualScale, degrees);
-	}
-
-	public float getRotate() {
-		return mManualRotate;
-	}
-
-	public void setMatrix(final float dx, final float dy, final float scale) {
-
-		setMatrix(dx, dy, scale, Float.MAX_VALUE);
-	}
-
-	public void setMatrix(final float dx, final float dy,
-		final float scale, final float degrees) {
-
-		if ((mTransX != dx) || (mTransY != dy)
-			|| (mManualScale != scale)
-			|| (mCurrentDegrees != degrees)) {
-
-			if (DEBUG) Log.v(TAG, "setMatrix");
-			mManualScale = scale <= 0.0f ? mManualScale : scale;
-			mTransX = dx;
-			mTransY = dy;
-			mManualRotate = degrees;
-			if (degrees != Float.MAX_VALUE) {
-				while (mManualRotate > 360) {
-					mManualRotate -= 360;
-				}
-				while (mManualRotate < -360) {
-					mManualRotate += 360;
-				}
-			}
-			final float[] work = new float[9];
-			mDefaultMatrix.getValues(work);
-			final int w2 = getWidth() >> 1;
-			final int h2 = getHeight() >> 1;
-//			mImageMatrix.setScale(
-//				work[Matrix.MSCALE_X] * mManualScale,
-//				work[Matrix.MSCALE_Y] * mManualScale,
-//				w2, h2);
-			mImageMatrix.reset();
-			mImageMatrix.postTranslate(dx, dy);
-			mImageMatrix.postScale(
-				work[Matrix.MSCALE_X] * mManualScale,
-				work[Matrix.MSCALE_Y] * mManualScale,
-				w2, h2);
-			if (degrees != Float.MAX_VALUE) {
-				mImageMatrix.postRotate(mManualRotate,
-					w2, h2);
-			}
-			// when Matrix is changed
-			mImageMatrixChanged = true;
-			// apply to super class
-			setTransform(mImageMatrix);
-		}
-	}
 }

@@ -100,5 +100,5 @@ dependencies {
 
 //	implementation(name:'common-4.1.1', ext:'aar')
 	implementation "androidx.appcompat:appcompat:${prop_androidx_version}"
-	implementation project(':libcommon-4.1.1')
+	implementation project(':libcommon')
 }

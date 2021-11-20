@@ -3,7 +3,7 @@ package com.serenegiant.mediastore;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,8 +28,6 @@ import android.graphics.Bitmap;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.os.Handler;
-
-import androidx.annotation.LayoutRes;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.viewpager.widget.PagerAdapter;
@@ -41,96 +39,57 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.serenegiant.common.R;
-import com.serenegiant.graphics.BitmapHelper;
-import com.serenegiant.utils.ThreadPool;
-import com.serenegiant.view.ViewUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
-import static com.serenegiant.mediastore.MediaStoreUtils.*;
+import static com.serenegiant.mediastore.MediaStoreHelper.*;
 
-/**
- * MediaStore内の静止画をViewPagerで表示するためのPagerAdapter実装
- * こっちはサムネイルではなくファイルからBitmapを指定サイズで読み込む
- */
 public class MediaStoreImageAdapter extends PagerAdapter {
 	private static final boolean DEBUG = false;	// FIXME 実働時はfalseにすること
 	private static final String TAG = MediaStoreImageAdapter.class.getSimpleName();
 
-	@NonNull
-	private final Context mContext;
-	@NonNull
 	private final LayoutInflater mInflater;
 	private final int mLayoutId;
-	@NonNull
 	private final ContentResolver mCr;
-	@NonNull
 	private final MyAsyncQueryHandler mQueryHandler;
-
 	protected boolean mDataValid;
+	protected int mRowIDColumn;
 	protected ChangeObserver mChangeObserver;
 	protected DataSetObserver mDataSetObserver;
 	private Cursor mCursor;
-	private final String mSelection = SELECTIONS[MEDIA_IMAGE];	// 静止画のみ有効
+	private String mSelection = SELECTIONS[MEDIA_IMAGE];	// 静止画のみ有効
 	private String[] mSelectionArgs = null;
-	@NonNull
-	private final MediaInfo info = new MediaInfo();
-	/**
-	 * 読み込み可能なレコードの位置を保持するList
-	 */
-	@NonNull
-	private final List<Integer> mValues = new ArrayList<>();
-	private boolean mNeedValidate;
 
 	private boolean mShowTitle;
 
-	/**
-	 * コンストラクタ
-	 * すぐにデータ取得要求する
-	 * @param context
-	 * @param id_layout
-	 */
-	public MediaStoreImageAdapter(@NonNull final Context context,
-		@LayoutRes final int id_layout) {
-
+	public MediaStoreImageAdapter(final Context context, final int id_layout) {
 		this(context, id_layout, true);
 	}
 
-	/**
-	 * コンストラクタ
-	 * @param context
-	 * @param id_layout
-	 * @param refreshNow true: すぐにデータ取得要求する, false: refreshを呼ぶまでデータ取得しない
-	 */
-	public MediaStoreImageAdapter(@NonNull final Context context,
-		@LayoutRes final int id_layout, final boolean refreshNow) {
+	public MediaStoreImageAdapter(final Context context,
+		final int id_layout, final boolean needQuery) {
 
-		mContext = context;
 		mInflater = LayoutInflater.from(context);
 		mLayoutId = id_layout;
 		mCr = context.getContentResolver();
 		mQueryHandler = new MyAsyncQueryHandler(mCr, this);
-		mNeedValidate = true;
-		if (refreshNow) {
-			refresh();
+		if (needQuery) {
+			startQuery();
 		}
 	}
 
 	@Override
 	protected void finalize() throws Throwable {
-		try {
-			changeCursor(null);
-		} finally {
-			super.finalize();
-		}
+		changeCursor(null);
+		super.finalize();
 	}
 
 	@Override
 	public int getCount() {
-		synchronized (mValues) {
-			return mValues.size();
+		if (mDataValid && mCursor != null) {
+			return mCursor.getCount();
+		} else {
+			return 0;
 		}
 	}
 
@@ -148,20 +107,23 @@ public class MediaStoreImageAdapter extends PagerAdapter {
 			if (holder == null) {
 				holder = new ViewHolder();
 			}
-			holder.mImageView = ViewUtils.findIconView(view);
-			holder.mTitleView = ViewUtils.findTitleView(view);
-			info.loadFromCursor(getCursor(position));
-			// ローカルキャッシュ
-			Drawable drawable = holder.mImageView.getDrawable();
-			if (!(drawable instanceof LoaderDrawable)) {
-				drawable = createLoaderDrawable(mContext, info);
-				holder.mImageView.setImageDrawable(drawable);
+			final TextView tv = holder.mTitleView = view.findViewById(R.id.title);
+			final ImageView iv = holder.mImageView = view.findViewById(R.id.thumbnail);
+			if (holder.info == null) {
+				holder.info = new MediaStoreHelper.MediaInfo();
 			}
-			((LoaderDrawable)drawable).startLoad(info);
-			if (holder.mTitleView != null) {
-				holder.mTitleView.setVisibility(mShowTitle ? View.VISIBLE : View.GONE);
+			holder.info.loadFromCursor(getCursor(position));
+			// ローカルキャッシュ
+			Drawable drawable = iv.getDrawable();
+			if (!(drawable instanceof MediaStoreHelper.LoaderDrawable)) {
+				drawable = createLoaderDrawable(mCr, holder.info);
+				iv.setImageDrawable(drawable);
+			}
+			((MediaStoreHelper.LoaderDrawable)drawable).startLoad(holder.info.mediaType, 0, holder.info.id);
+			if (tv != null) {
+				tv.setVisibility(mShowTitle ? View.VISIBLE : View.GONE);
 				if (mShowTitle) {
-					holder.mTitleView.setText(info.title);
+					tv.setText(holder.info.title);
 				}
 			}
 		}
@@ -184,21 +146,10 @@ public class MediaStoreImageAdapter extends PagerAdapter {
 		return super.getItemPosition(object);
 	}
 
-	/**
-	 * 読み込みできないデータをオミットするかどうか
-	 * 次回のrefresh呼び出しから有効
-	 * @param needValidate
-	 */
-	public void setValidateItems(final boolean needValidate) {
-		if (mNeedValidate != needValidate) {
-			mNeedValidate = needValidate;
-		}
-	}
-
 	public int getItemPositionFromID(final long id) {
 		if (DEBUG) Log.v(TAG, "getItemPositionFromID:id=" + id);
 		int result = -1;
-		final Cursor cursor = mCr.query(QUERY_URI_FILES, PROJ_MEDIA, mSelection, mSelectionArgs, null);
+		final Cursor cursor = mCr.query(QUERY_URI, PROJ_MEDIA, mSelection, mSelectionArgs, null);
 		if (cursor != null) {
 			try {
 				if (cursor.moveToFirst()) {
@@ -225,58 +176,6 @@ public class MediaStoreImageAdapter extends PagerAdapter {
 		return view.equals(object);
 	}
 
-	/**
-	 * get MediaInfo at specified position
-	 * @param position
-	 * @return
-	 */
-	@NonNull
-	public MediaInfo getMediaInfo(final int position) {
-		return getMediaInfo(position, null);
-	}
-
-	/**
-	 * get MediaInfo at specified position
-	 * @param position
-	 * @param info
-	 * @return
-	 */
-	@NonNull
-	public synchronized MediaInfo getMediaInfo(
-		final int position, @Nullable final MediaInfo info) {
-
-		final MediaInfo _info = info != null ? info : new MediaInfo();
-		final int pos;
-		synchronized (mValues) {
-			pos = mValues.get(position);
-		}
-
-/*		// if you don't need to frequently call this method, temporary query may be better to reduce memory usage.
-		// but it will take more time.
-		final Cursor cursor = mCr.query(
-			ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, getItemId(position)),
-			PROJ_IMAGE, mSelection, mSelectionArgs, MediaStore.Images.Media.DEFAULT_SORT_ORDER);
-		if (cursor != null) {
-			try {
-				if (cursor.moveToFirst()) {
-					info = readMediaInfo(cursor, new MediaInfo());
-				}
-			} finally {
-				cursor.close();
-			}
-		} */
-		if (mCursor == null) {
-			throw new IllegalStateException("Cursor is not ready!");
-//			mCursor = mCr.query(
-//				QUERY_URI, PROJ_MEDIA,
-//				mSelection, mSelectionArgs, null);
-		}
-		if (mCursor.moveToPosition(pos)) {
-			_info.loadFromCursor(mCursor);
-		}
-		return _info;
-	}
-
 	protected void changeCursor(@Nullable final Cursor cursor) {
 		final Cursor old = swapCursor(cursor);
 		if ((old != null) && !old.isClosed()) {
@@ -293,48 +192,25 @@ public class MediaStoreImageAdapter extends PagerAdapter {
   		}
 	}
 
-	@Nullable
-	protected Cursor swapCursor(@Nullable final Cursor newCursor) {
+	protected Cursor swapCursor(final Cursor newCursor) {
 		if (newCursor == mCursor) {
 			return null;
 		}
 		Cursor oldCursor = mCursor;
 		if (oldCursor != null) {
-			if (mChangeObserver != null) {
-				oldCursor.unregisterContentObserver(mChangeObserver);
-			}
-			if (mDataSetObserver != null) {
-				oldCursor.unregisterDataSetObserver(mDataSetObserver);
-			}
+			if (mChangeObserver != null) oldCursor.unregisterContentObserver(mChangeObserver);
+			if (mDataSetObserver != null) oldCursor.unregisterDataSetObserver(mDataSetObserver);
 		}
 		mCursor = newCursor;
 		if (newCursor != null) {
-			if (mChangeObserver != null) {
-				newCursor.registerContentObserver(mChangeObserver);
-			}
-			if (mDataSetObserver != null) {
-				newCursor.registerDataSetObserver(mDataSetObserver);
-			}
-			synchronized (mValues) {
-				mValues.clear();
-				if (newCursor.moveToFirst()) {
-					int pos = 0;
-					do {
-						info.loadFromCursor(newCursor);
-						if (!mNeedValidate || info.canRead(mCr)) {
-							mValues.add(pos);
-						}
-						pos++;
-					} while (newCursor.moveToNext());
-				}
-			}
+			if (mChangeObserver != null) newCursor.registerContentObserver(mChangeObserver);
+			if (mDataSetObserver != null) newCursor.registerDataSetObserver(mDataSetObserver);
+			mRowIDColumn = newCursor.getColumnIndexOrThrow("_id");
 			mDataValid = true;
 			// notify the observers about the new cursor
 			notifyDataSetChanged();
 		} else {
-			synchronized (mValues) {
-				mValues.clear();
-			}
+			mRowIDColumn = -1;
 			mDataValid = false;
 			// notify the observers about the lack of a data set
 			notifyDataSetInvalidated();
@@ -346,29 +222,26 @@ public class MediaStoreImageAdapter extends PagerAdapter {
 //		mDataSetObservable.notifyInvalidated();
 	}
 
-	public void refresh() {
-		ThreadPool.preStartAllCoreThreads();
+	public void startQuery() {
 		mQueryHandler.requery();
 	}
 
-	protected LoaderDrawable createLoaderDrawable(
-		@NonNull final Context context, @NonNull final MediaInfo info) {
+	protected MediaStoreHelper.LoaderDrawable createLoaderDrawable(
+		final ContentResolver cr, final MediaInfo info) {
 
-		return new ImageLoaderDrawable(context, info.width, info.height);
+		return new ImageLoaderDrawable(cr, info.width, info.height);
 	}
 
 	private static final class ViewHolder {
 		TextView mTitleView;
 		ImageView mImageView;
+		MediaStoreHelper.MediaInfo info;
 	}
 
 	private static final class MyAsyncQueryHandler extends AsyncQueryHandler {
-		@NonNull
 		private final MediaStoreImageAdapter mAdapter;
-
-		public MyAsyncQueryHandler(
-			@NonNull final ContentResolver cr,
-			@NonNull final MediaStoreImageAdapter adapter) {
+		public MyAsyncQueryHandler(final ContentResolver cr,
+			final MediaStoreImageAdapter adapter) {
 
 			super(cr);
 			mAdapter = adapter;
@@ -376,7 +249,7 @@ public class MediaStoreImageAdapter extends PagerAdapter {
 
 		public void requery() {
 			synchronized (mAdapter) {
-				startQuery(0, mAdapter, QUERY_URI_IMAGES, PROJ_MEDIA_IMAGE,
+				startQuery(0, mAdapter, QUERY_URI, PROJ_MEDIA,
 					mAdapter.mSelection, mAdapter.mSelectionArgs, null);
 			}
 		}
@@ -405,7 +278,7 @@ public class MediaStoreImageAdapter extends PagerAdapter {
 
 		@Override
 		public void onChange(boolean selfChange) {
-			refresh();
+			startQuery();
 		}
 	}
 
@@ -423,40 +296,37 @@ public class MediaStoreImageAdapter extends PagerAdapter {
 		}
 	}
 
-	private static class ImageLoaderDrawable extends LoaderDrawable {
-		public ImageLoaderDrawable(@NonNull final Context context,
+	private static class ImageLoaderDrawable extends MediaStoreHelper.LoaderDrawable {
+		public ImageLoaderDrawable(final ContentResolver cr,
 			final int width, final int height) {
 
-			super(context, width, height);
+			super(cr, width, height);
 		}
 
-		@NonNull
 		@Override
-		protected ImageLoader createImageLoader() {
+		protected MediaStoreHelper.ImageLoader createThumbnailLoader() {
 			return new MyImageLoader(this);
 		}
 
 		@Override
-		protected Bitmap checkCache(final long id) {
+		protected Bitmap checkBitmapCache(final int hashCode, final long id) {
 			return null;
 		}
 	}
 
-	private static class MyImageLoader extends ImageLoader {
+	private static class MyImageLoader extends MediaStoreHelper.ImageLoader {
 		public MyImageLoader(final ImageLoaderDrawable parent) {
 			super(parent);
 		}
 
 		@Override
-		protected Bitmap loadBitmap(@NonNull final Context context,
-			@NonNull final MediaInfo info,
-			final int requestWidth, final int requestHeight) {
+		protected Bitmap loadBitmap(final ContentResolver cr,
+			final int mediaType, final int hashCode,
+			final long id, final int requestWidth, final int requestHeight) {
 
 			Bitmap result = null;
 			try {
-				result = BitmapHelper.asBitmap(
-					context.getContentResolver(), info.id,
-					requestWidth, requestHeight);
+				result = MediaStoreHelper.getImage(cr, id, requestWidth, requestHeight);
 				if (result != null) {
 					final int w = result.getWidth();
 					final int h = result.getHeight();
@@ -468,10 +338,7 @@ public class MediaStoreImageAdapter extends PagerAdapter {
 					mParent.onBoundsChange(bounds);
 				}
 			} catch (final IOException e) {
-				if (DEBUG) Log.w(TAG, e);
-			}
-			if (result == null) {
-				result = loadDefaultBitmap(context, R.drawable.ic_error_outline_red_24dp);
+				Log.w(TAG, e);
 			}
 			return result;
 		}

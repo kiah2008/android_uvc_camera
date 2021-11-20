@@ -3,6 +3,8 @@ project(yuv_libs)
 
 set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR}/outputs)
 
+ADD_SUBDIRECTORY(${CMAKE_SOURCE_DIR}/libcoreutils)
+
 #2.1.1
 ADD_SUBDIRECTORY(${CMAKE_SOURCE_DIR}/libjpeg-turbo)
 #ADD_SUBDIRECTORY(${CMAKE_SOURCE_DIR}/libjpeg-turbo-1.5.0)

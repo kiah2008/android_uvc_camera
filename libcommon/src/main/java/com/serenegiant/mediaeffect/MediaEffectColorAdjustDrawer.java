@@ -3,7 +3,7 @@ package com.serenegiant.mediaeffect;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,13 +33,13 @@ public class MediaEffectColorAdjustDrawer
 	private float mColorAdjust;
 
 	public MediaEffectColorAdjustDrawer(final String fss) {
-		this(false, VERTEX_SHADER_ES2, fss);
+		this(false, VERTEX_SHADER, fss);
 	}
 
 	public MediaEffectColorAdjustDrawer(final boolean isOES,
 		final String fss) {
 
-		this(isOES, VERTEX_SHADER_ES2, fss);
+		this(isOES, VERTEX_SHADER, fss);
 	}
 
 	public MediaEffectColorAdjustDrawer(final boolean isOES,

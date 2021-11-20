@@ -3,7 +3,7 @@ package com.serenegiant.utils;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,10 +25,6 @@ import android.util.Log;
 
 public final class UIThreadHelper {
 	private static final String TAG = UIThreadHelper.class.getSimpleName();
-
-	private UIThreadHelper() {
-		// インスタンス化をエラーにするためにデフォルトコンストラクタをprivateに
-	}
 
 	/** UI操作用のHandler */
 	private static final Handler sUIHandler = new Handler(Looper.getMainLooper());

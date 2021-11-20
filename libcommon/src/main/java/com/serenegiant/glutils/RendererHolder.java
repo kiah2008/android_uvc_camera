@@ -3,7 +3,7 @@ package com.serenegiant.glutils;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,86 +28,52 @@ public class RendererHolder extends AbstractRendererHolder {
 //	private static final boolean DEBUG = false;	// FIXME 実働時はfalseにすること
 	private static final String TAG = RendererHolder.class.getSimpleName();
 
-	/**
-	 * コンストラクタ
-	 * @param width
-	 * @param height
-	 * @param callback
-	 */
 	public RendererHolder(final int width, final int height,
 		@Nullable final RenderHolderCallback callback) {
 
 		this(width, height,
-			3, null, EGLConst.EGL_FLAG_RECORDABLE,
-			false, callback);
+			3, null, EglTask.EGL_FLAG_RECORDABLE,
+			callback);
 	}
 
-	/**
-	 * コンストラクタ
-	 * @param width
-	 * @param height
-	 * @param enableVSync Choreographerを使ってvsync同期して映像更新するかどうか
-	 * @param callback
-	 */
 	public RendererHolder(final int width, final int height,
-		final boolean enableVSync,
-		@Nullable final RenderHolderCallback callback) {
-
-		this(width, height,
-			3, null, EGLConst.EGL_FLAG_RECORDABLE,
-			enableVSync, callback);
-	}
-
-	/**
-	 * コンストラクタ
-	 * @param width
-	 * @param height
-	 * @param maxClientVersion
-	 * @param sharedContext
-	 * @param flags
-	 * @param callback
-	 */
-	public RendererHolder(final int width, final int height,
-		final int maxClientVersion,
-		@Nullable final EGLBase.IContext sharedContext, final int flags,
-		@Nullable final RenderHolderCallback callback) {
-
-		this(width, height,
-			maxClientVersion, sharedContext, flags,
-			false, callback);
-	}
-
-	/**
-	 * コンストラクタ
-	 * @param width
-	 * @param height
-	 * @param maxClientVersion
-	 * @param sharedContext
-	 * @param flags
-	 * @param enableVSync Choreographerを使ってvsync同期して映像更新するかどうか
-	 * @param callback
-	 */
-	public RendererHolder(final int width, final int height,
-		final int maxClientVersion,
-		@Nullable final EGLBase.IContext sharedContext, final int flags,
-		final boolean enableVSync,
+		final int maxClientVersion, final EGLBase.IContext sharedContext, final int flags,
 		@Nullable final RenderHolderCallback callback) {
 
 		super(width, height,
 			maxClientVersion, sharedContext, flags,
-			enableVSync, callback);
+			callback);
 	}
 
 	@NonNull
-	@Override
-	protected BaseRendererTask createRendererTask(
-		final int width, final int height,
-		final int maxClientVersion,
-		@Nullable final EGLBase.IContext sharedContext, final int flags,
-		final boolean enableVsync) {
+	protected RendererTask createRendererTask(final int width, final int height,
+		final int maxClientVersion, final EGLBase.IContext sharedContext, final int flags) {
 
-		return new BaseRendererTask(this, width, height,
-			maxClientVersion, sharedContext, flags, enableVsync);
+		return new MyRendererTask(this, width, height,
+			maxClientVersion, sharedContext, flags);
 	}
 	
+//================================================================================
+// 実装
+//================================================================================
+	/**
+	 * ワーカースレッド上でOpenGL|ESを用いてマスター映像を分配描画するためのインナークラス
+	 */
+	protected static final class MyRendererTask extends RendererTask {
+
+		public MyRendererTask(final RendererHolder parent,
+			final int width, final int height) {
+
+			super(parent, width, height);
+		}
+
+		public MyRendererTask(@NonNull final AbstractRendererHolder parent,
+			final int width, final int height,
+			final int maxClientVersion,
+			final EGLBase.IContext sharedContext, final int flags) {
+
+			super(parent, width, height, maxClientVersion, sharedContext, flags);
+		}
+	}
+
 }

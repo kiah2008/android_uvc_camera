@@ -3,7 +3,7 @@ package com.serenegiant.media;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ public abstract class AbstractAudioEncoder extends AbstractEncoder
 	public AbstractAudioEncoder(final IRecorder recorder, final EncoderListener listener,
 		final int audio_source, final int audio_channels, final int sample_rate, final int bit_rate) {
 
-		super(MediaCodecUtils.MIME_AUDIO_AAC, recorder, listener);
+		super(MediaCodecHelper.MIME_AUDIO_AAC, recorder, listener);
 //		if (DEBUG) Log.v(TAG, "コンストラクタ:");
 		mAudioSource = audio_source;
 		mChannelCount = audio_channels;
@@ -70,7 +70,7 @@ public abstract class AbstractAudioEncoder extends AbstractEncoder
         mRecorderStarted = mIsEOS = false;
 
 // 音声を取り込んでAACにエンコードするためのMediaCodecの準備
-        final MediaCodecInfo audioCodecInfo = MediaCodecUtils.selectAudioEncoder(MIME_TYPE);
+        final MediaCodecInfo audioCodecInfo = MediaCodecHelper.selectAudioEncoder(MIME_TYPE);
         if (audioCodecInfo == null) {
 //			Log.e(TAG, "Unable to find an appropriate codec for " + MIME_TYPE);
             return true;

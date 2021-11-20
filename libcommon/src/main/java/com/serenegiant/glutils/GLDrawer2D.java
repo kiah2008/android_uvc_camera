@@ -3,7 +3,7 @@ package com.serenegiant.glutils;
  * libcommon
  * utility/helper classes for myself
  *
- * Copyright (c) 2014-2021 saki t_saki@serenegiant.com
+ * Copyright (c) 2014-2018 saki t_saki@serenegiant.com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,182 +18,97 @@ package com.serenegiant.glutils;
  *  limitations under the License.
 */
 
-import android.annotation.SuppressLint;
-import android.opengl.GLES20;
-import android.opengl.Matrix;
-import android.util.Log;
-
-import com.serenegiant.system.BuildCheck;
-import com.serenegiant.utils.BufferHelper;
-
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 
-import androidx.annotation.CallSuper;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
+import android.opengl.GLES20;
+import android.opengl.Matrix;
 
 import static com.serenegiant.glutils.ShaderConst.*;
 
 /**
  * 描画領域全面にテクスチャを2D描画するためのヘルパークラス
- * 基本的に直接生成せずにGLDrawer2D#createメソッドを使うこと
  */
-public abstract class GLDrawer2D {
-	private static final boolean DEBUG = false; // FIXME set false on release
-	private static final String TAG = GLDrawer2D.class.getSimpleName();
+public class GLDrawer2D implements IDrawer2dES2 {
+//	private static final boolean DEBUG = false; // FIXME set false on release
+//	private static final String TAG = "GLDrawer2D";
+
+	private static final float[] VERTICES = { 1.0f, 1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f, -1.0f };
+	private static final float[] TEXCOORD = { 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f };
+	private static final int FLOAT_SZ = Float.SIZE / 8;
+
+	private final int VERTEX_NUM;
+	private final int VERTEX_SZ;
+	private final FloatBuffer pVertex;
+	private final FloatBuffer pTexCoord;
+	private final int mTexTarget;
+	private int hProgram;
+    int maPositionLoc;
+    int maTextureCoordLoc;
+    int muMVPMatrixLoc;
+    int muTexMatrixLoc;
+	private final float[] mMvpMatrix = new float[16];
 
 	/**
-	 * バッファオブジェクトを使って描画するかどうか
+	 * コンストラクタ
+	 * GLコンテキスト/EGLレンダリングコンテキストが有効な状態で呼ばないとダメ
+	 * @param isOES 外部テクスチャ(GL_TEXTURE_EXTERNAL_OES)を使う場合はtrue。
+	 * 				通常の2Dテキスチャならfalse
 	 */
-	protected static final boolean USE_VBO = true;
-
-	protected static final float[] DEFAULT_VERTICES = {
-		1.0f, 1.0f,		// 右上
-		-1.0f, 1.0f,	// 左上
-		1.0f, -1.0f,	// 右下
-		-1.0f, -1.0f	// 左下
-	};
-	protected static final float[] DEFAULT_TEXCOORD = {
-		1.0f, 1.0f,		// 右上
-		0.0f, 1.0f,		// 左上
-		1.0f, 0.0f,		// 右下
-		0.0f, 0.0f		// 左下
-	};
-	protected static final int FLOAT_SZ = Float.SIZE / 8;
-
-	/**
-	 * インスタンス生成のためのヘルパーメソッド
-	 * 頂点シェーダーとフラグメントシェーダはデフォルトのものを使う
-	 * @param isOES
-	 * @return
-	 */
-	public static GLDrawer2D create(final boolean isGLES3, final boolean isOES) {
-		return create(isGLES3, DEFAULT_VERTICES, DEFAULT_TEXCOORD, isOES);
+	public GLDrawer2D(final boolean isOES) {
+		this(VERTICES, TEXCOORD, isOES);
 	}
-
-	/**
-	 * インスタンス生成のためのヘルパーメソッド
-	 * @param vertices
-	 * @param texcoord
-	 * @param isOES
-	 * @return
-	 */
-	@SuppressLint("NewApi")
-	public static GLDrawer2D create(final boolean isGLES3,
-		@NonNull final float[] vertices,
-		@NonNull final float[] texcoord, final boolean isOES) {
-
-		if (isGLES3 && BuildCheck.isAndroid4_3()) {
-			return new GLDrawer2DES3(vertices, texcoord, isOES);
-		} else {
-			return new GLDrawer2DES2(vertices, texcoord, isOES);
-		}
-	}
-
-	protected static int gLTextureUnit2Index(final int glTextureUnit) {
-		return (glTextureUnit >= GLES20.GL_TEXTURE0) && (glTextureUnit <= GLES20.GL_TEXTURE31)
-			? glTextureUnit - GLES20.GL_TEXTURE0 : 0;
-	}
-
-//================================================================================
-	/**
-	 * GLES3を使うかどうか
-	 */
-	public final boolean isGLES3;
-	/**
-	 * 頂点の数
-	 */
-	protected final int VERTEX_NUM;
-	/**
-	 * 頂点配列のサイズ
-	 */
-	protected final int VERTEX_SZ;
-	/**
-	 * 頂点座標
-	 */
-	protected final FloatBuffer pVertex;
-	/**
-	 * テクスチャ座標
-	 */
-	protected final FloatBuffer pTexCoord;
-	/**
-	 * テクスチャターゲット
-	 * GL_TEXTURE_EXTERNAL_OESかGL_TEXTURE_2D
-	 */
-	protected final int mTexTarget;
-
-	protected int hProgram;
-	/**
-	 * 頂点座標のlocation
-	 */
-	protected int maPositionLoc;
-	/**
-	 * テクスチャ座標のlocation
-	 */
-	protected int maTextureCoordLoc;
-	/**
-	 * 使用するテクスチャユニットのlocation
-	 */
-	protected int muTextureLoc;
-	/**
-	 * モデルビュー変換行列のlocation
-	 */
-	protected int muMVPMatrixLoc;
-	/**
-	 * テクスチャ座標変換行列のlocation
-	 */
-	protected int muTexMatrixLoc;
-	/**
-	 * モデルビュー変換行列
-	 */
-    @NonNull
-	protected final float[] mMvpMatrix = new float[16];
-	/**
-	 * エラーカウンタ
-	 */
-	private int errCnt;
 
 	/**
 	 * コンストラクタ
 	 * GLコンテキスト/EGLレンダリングコンテキストが有効な状態で呼ばないとダメ
 	 * @param vertices 頂点座標, floatを8個 = (x,y) x 4ペア
 	 * @param texcoord テクスチャ座標, floatを8個 = (s,t) x 4ペア
-	 * @param isOES 外部テクスチャ(GL_TEXTURE_EXTERNAL_OES)を描画に使う場合はtrue。
-	 * 				通常の2Dテキスチャを描画に使うならfalse
+	 * @param isOES 外部テクスチャ(GL_TEXTURE_EXTERNAL_OES)を使う場合はtrue。
+	 * 				通常の2Dテキスチャならfalse
 	 */
-	protected GLDrawer2D(final boolean isGLES3,
-		final float[] vertices,
+	public GLDrawer2D(final float[] vertices,
 		final float[] texcoord, final boolean isOES) {
 
-		if (DEBUG) Log.v(TAG, "コンストラクタ:isGLES3=" + isGLES3 + ",isOES=" + isOES);
-		this.isGLES3 = isGLES3;
 		VERTEX_NUM = Math.min(
 			vertices != null ? vertices.length : 0,
 			texcoord != null ? texcoord.length : 0) / 2;
 		VERTEX_SZ = VERTEX_NUM * 2;
 
 		mTexTarget = isOES ? GL_TEXTURE_EXTERNAL_OES : GL_TEXTURE_2D;
-		pVertex = BufferHelper.createFloatBuffer(vertices);
-		pTexCoord = BufferHelper.createFloatBuffer(texcoord);
+		pVertex = ByteBuffer.allocateDirect(VERTEX_SZ * FLOAT_SZ)
+				.order(ByteOrder.nativeOrder()).asFloatBuffer();
+		pVertex.put(vertices);
+		pVertex.flip();
+		pTexCoord = ByteBuffer.allocateDirect(VERTEX_SZ * FLOAT_SZ)
+				.order(ByteOrder.nativeOrder()).asFloatBuffer();
+		pTexCoord.put(texcoord);
+		pTexCoord.flip();
 
+		if (isOES) {
+			hProgram = GLHelper.loadShader(VERTEX_SHADER, FRAGMENT_SHADER_SIMPLE_OES);
+		} else {
+			hProgram = GLHelper.loadShader(VERTEX_SHADER, FRAGMENT_SHADER_SIMPLE);
+		}
 		// モデルビュー変換行列を初期化
 		Matrix.setIdentityM(mMvpMatrix, 0);
-
-		resetShader();
+		init();
 	}
 
 	/**
 	 * 破棄処理。GLコンテキスト/EGLレンダリングコンテキスト内で呼び出さないとダメ
-	 * IDrawer2Dの実装
 	 */
-	@CallSuper
+	@Override
 	public void release() {
-		releaseShader();
+		if (hProgram >= 0) {
+			GLES20.glDeleteProgram(hProgram);
+		}
+		hProgram = -1;
 	}
 
 	/**
 	 * 外部テクスチャを使うかどうか
-	 * IShaderDrawer2dの実装
 	 * @return
 	 */
 	public boolean isOES() {
@@ -202,193 +117,98 @@ public abstract class GLDrawer2D {
 
 	/**
 	 * モデルビュー変換行列を取得(内部配列を直接返すので変更時は要注意)
-	 * IDrawer2Dの実装
 	 * @return
 	 */
-	@NonNull
+	@Override
 	public float[] getMvpMatrix() {
 		return mMvpMatrix;
 	}
 
 	/**
 	 * モデルビュー変換行列に行列を割り当てる
-	 * IDrawer2Dの実装
 	 * @param matrix 領域チェックしていないのでoffsetから16個以上必須
 	 * @param offset
 	 * @return
 	 */
-	public GLDrawer2D setMvpMatrix(@NonNull final float[] matrix, final int offset) {
+	@Override
+	public IDrawer2D setMvpMatrix(final float[] matrix, final int offset) {
 		System.arraycopy(matrix, offset, mMvpMatrix, 0, 16);
 		return this;
 	}
 
 	/**
 	 * モデルビュー変換行列のコピーを取得
-	 * IDrawer2Dの実装
 	 * @param matrix 領域チェックしていないのでoffsetから16個以上必須
 	 * @param offset
 	 */
-	public void copyMvpMatrix(@NonNull final float[] matrix, final int offset) {
+	@Override
+	public void getMvpMatrix(final float[] matrix, final int offset) {
 		System.arraycopy(mMvpMatrix, 0, matrix, offset, 16);
 	}
 
 	/**
-	 * モデルビュー変換行列に左右・上下反転をセット
-	 * @param mirror
+	 * 指定したテクスチャを指定したテクスチャ変換行列を使って描画領域全面に描画するためのヘルパーメソッド
+	 * このクラスインスタンスのモデルビュー変換行列が設定されていればそれも適用された状態で描画する
+	 * @param texId texture ID
+	 * @param tex_matrix テクスチャ変換行列、nullならば以前に適用したものが再利用される。
+	 * 					領域チェックしていないのでoffsetから16個以上確保しておくこと
 	 */
-	public void setMirror(@IRendererCommon.MirrorMode final int mirror) {
-		GLUtils.setMirror(mMvpMatrix, mirror);
-	}
-
-	/**
-	 * 現在のモデルビュー変換行列をxy平面で指定した角度回転させる
-	 * @param degrees
-	 */
-	public void rotate(final int degrees) {
-		GLUtils.rotate(mMvpMatrix, degrees);
-	}
-
-	/**
-	 * モデルビュー変換行列にxy平面で指定した角度回転させた回転行列をセットする
-	 * @param degrees
-	 */
-	public void setRotation(final int degrees) {
-		GLUtils.setRotation(mMvpMatrix, degrees);
-	}
-
-	/**
-	 * IGLSurfaceオブジェクトを描画するためのヘルパーメソッド
-	 * IGLSurfaceオブジェクトで管理しているテクスチャ名とテクスチャ座標変換行列を使って描画する
-	 * IDrawer2Dの実装
-	 * @param surface
-	 */
-	public void draw(@NonNull final IGLSurface surface) {
-		draw(surface.getTexUnit(), surface.getTexId(), surface.getTexMatrix(), 0, mMvpMatrix, 0);
-	}
-
-	/**
-	 * 描画処理
-	 * @param texId
-	 * @param tex_matrix
-	 * @param offset
-	 */
-	public synchronized void draw(
-		final int texId,
-		@Nullable final float[] tex_matrix, final int offset) {
-
-		draw(GLES20.GL_TEXTURE0, texId, tex_matrix, offset, mMvpMatrix, 0);
-	}
-
-	/**
-	 * 描画処理
-	 * @param texUnit
-	 * @param texId
-	 * @param tex_matrix
-	 * @param offset
-	 */
-	public synchronized void draw(
-		final int texUnit, final int texId,
-		@Nullable final float[] tex_matrix, final int offset) {
-
-		draw(texUnit, texId, tex_matrix, offset, mMvpMatrix, 0);
-	}
-
-	/**
-	 * 描画処理
-	 * @param texUnit
-	 * @param texId
-	 * @param tex_matrix
-	 * @param tex_offset
-	 * @param mvp_matrix
-	 * @param mvp_offset
-	 */
-	public synchronized void draw(
-		final int texUnit, final int texId,
-		@Nullable final float[] tex_matrix, final int tex_offset,
-		@Nullable final float[] mvp_matrix, final int mvp_offset) {
+	@Override
+	public synchronized void draw(final int texId,
+		final float[] tex_matrix, final int offset) {
 
 //		if (DEBUG) Log.v(TAG, "draw");
 		if (hProgram < 0) return;
-		glUseProgram();
+		GLES20.glUseProgram(hProgram);
 		if (tex_matrix != null) {
 			// テクスチャ変換行列が指定されている時
-			updateTexMatrix(tex_matrix, tex_offset);
+			GLES20.glUniformMatrix4fv(muTexMatrixLoc, 1, false, tex_matrix, offset);
 		}
-		if (mvp_matrix != null) {
-			// モデルビュー変換行列が指定されている時
-			updateMvpMatrix(mvp_matrix, mvp_offset);
-		}
-		bindTexture(texUnit, texId);
-		if (validateProgram(hProgram)) {
-			drawVertices();
-			errCnt = 0;
-		} else {
-			if (errCnt++ == 0) {
-				Log.w(TAG, "draw:invalid program");
-				// シェーダーを再初期化する
-				resetShader();
-			}
-		}
-		finishDraw();
+		// モデルビュー変換行列をセット
+		GLES20.glUniformMatrix4fv(muMVPMatrixLoc, 1, false, mMvpMatrix, 0);
+		GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+		GLES20.glBindTexture(mTexTarget, texId);
+		GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, VERTEX_NUM);
+		GLES20.glBindTexture(mTexTarget, 0);
+        GLES20.glUseProgram(0);
 	}
 
 	/**
-	 * テクスチャ変換行列をセット
-	 * @param tex_matrix
-	 * @param offset
+	 * Textureオブジェクトを描画するためのヘルパーメソッド
+	 * Textureオブジェクトで管理しているテクスチャ名とテクスチャ座標変換行列を使って描画する
+	 * @param texture
 	 */
-	protected abstract void updateTexMatrix(final float[] tex_matrix, final int offset);
+	@Override
+	public void draw(final ITexture texture) {
+		draw(texture.getTexture(), texture.getTexMatrix(), 0);
+	}
 
 	/**
-	 * モデルビュー変換行列をセット
-	 * @param mvpMatrix
+	 * TextureOffscreenオブジェクトを描画するためのヘルパーメソッド
+	 * @param offscreen
 	 */
-	protected abstract void updateMvpMatrix(final float[] mvpMatrix, final int offset);
-
-	/**
-	 * テクスチャをバインド
-	 * @param texUnit
-	 * @param texId
-	 */
-	protected abstract void bindTexture(final int texUnit, final int texId);
-
-	/**
-	 * 頂点座標をセット
-	 */
-	protected abstract void updateVertices();
-
-	/**
-	 * 描画実行
-	 */
-	protected abstract void drawVertices();
-
-	/**
-	 * 描画の後処理
-	 */
-	protected abstract void finishDraw();
+	@Override
+	public void draw(final TextureOffscreen offscreen) {
+		draw(offscreen.getTexture(), offscreen.getTexMatrix(), 0);
+	}
 
 	/**
 	 * テクスチャ名生成のヘルパーメソッド
 	 * GLHelper#initTexを呼び出すだけ
 	 * @return texture ID
 	 */
-	public abstract int initTex();
-
-	/**
-	 * テクスチャ名生成のヘルパーメソッド
-	 * GLHelper#initTexを呼び出すだけ
-	 * @param texUnit
-	 * @param filterParam
-	 * @return
-	 */
-	public abstract int initTex(final int texUnit, final int filterParam);
+	public int initTex() {
+		return GLHelper.initTex(mTexTarget, GLES20.GL_NEAREST);
+	}
 
 	/**
 	 * テクスチャ名破棄のヘルパーメソッド
 	 * GLHelper.deleteTexを呼び出すだけ
 	 * @param hTex
 	 */
-	public abstract void deleteTex(final int hTex);
+	public void deleteTex(final int hTex) {
+		GLHelper.deleteTex(hTex);
+	}
 
 	/**
 	 * 頂点シェーダー・フラグメントシェーダーを変更する
@@ -397,24 +217,11 @@ public abstract class GLDrawer2D {
 	 * @param vs 頂点シェーダー文字列
 	 * @param fs フラグメントシェーダー文字列
 	 */
-	public synchronized void updateShader(@NonNull final String vs, @NonNull final String fs) {
-		releaseShader();
-		hProgram = loadShader(vs, fs);
+	public synchronized void updateShader(final String vs, final String fs) {
+		release();
+		hProgram = GLHelper.loadShader(vs, fs);
 		init();
 	}
-
-	/**
-	 * シェーダーを破棄
-	 */
-	protected void releaseShader() {
-		if (hProgram >= 0) {
-			internalReleaseShader(hProgram);
-		}
-		hProgram = -1;
-	}
-
-	protected abstract int loadShader(@NonNull final String vs, @NonNull final String fs);
-	protected abstract void internalReleaseShader(final int program);
 
 	/**
 	 * フラグメントシェーダーを変更する
@@ -422,21 +229,19 @@ public abstract class GLDrawer2D {
 	 * glUseProgramが呼ばれた状態で返る
 	 * @param fs フラグメントシェーダー文字列
 	 */
-	public void updateShader(@NonNull final String fs) {
-		updateShader(isGLES3 ? VERTEX_SHADER_ES3 : VERTEX_SHADER_ES2, fs);
+	public void updateShader(final String fs) {
+		updateShader(VERTEX_SHADER, fs);
 	}
 
 	/**
 	 * 頂点シェーダー・フラグメントシェーダーをデフォルトに戻す
 	 */
 	public void resetShader() {
-		releaseShader();
-		if (isGLES3) {
-			hProgram = loadShader(VERTEX_SHADER_ES3,
-				isOES() ? FRAGMENT_SHADER_EXT_ES3 : FRAGMENT_SHADER_ES3);
+		release();
+		if (isOES()) {
+			hProgram = GLHelper.loadShader(VERTEX_SHADER, FRAGMENT_SHADER_SIMPLE_OES);
 		} else {
-			hProgram = loadShader(VERTEX_SHADER_ES2,
-				isOES() ? FRAGMENT_SHADER_EXT_ES2 : FRAGMENT_SHADER_ES2);
+			hProgram = GLHelper.loadShader(VERTEX_SHADER, FRAGMENT_SHADER_SIMPLE);
 		}
 		init();
 	}
@@ -447,7 +252,11 @@ public abstract class GLDrawer2D {
 	 * @param name
 	 * @return
 	 */
-	public abstract int glGetAttribLocation(@NonNull final String name);
+	@Override
+	public int glGetAttribLocation(final String name) {
+		GLES20.glUseProgram(hProgram);
+		return GLES20.glGetAttribLocation(hProgram, name);
+	}
 
 	/**
 	 * ユニフォーム変数のロケーションを取得
@@ -455,23 +264,40 @@ public abstract class GLDrawer2D {
 	 * @param name
 	 * @return
 	 */
-	public abstract int glGetUniformLocation(@NonNull final String name);
+	@Override
+	public int glGetUniformLocation(final String name) {
+		GLES20.glUseProgram(hProgram);
+		return GLES20.glGetUniformLocation(hProgram, name);
+	}
 
 	/**
 	 * glUseProgramが呼ばれた状態で返る
 	 */
-	public abstract void glUseProgram();
+	@Override
+	public void glUseProgram() {
+		GLES20.glUseProgram(hProgram);
+	}
 
 	/**
 	 * シェーダープログラム変更時の初期化処理
 	 * glUseProgramが呼ばれた状態で返る
 	 */
-	protected abstract void init();
-
-	/**
-	 * シェーダープログラムが使用可能かどうかをチェック
-	 * @param program
-	 * @return
-	 */
-	protected abstract boolean validateProgram(final int program);
+	private void init() {
+		GLES20.glUseProgram(hProgram);
+		maPositionLoc = GLES20.glGetAttribLocation(hProgram, "aPosition");
+		maTextureCoordLoc = GLES20.glGetAttribLocation(hProgram, "aTextureCoord");
+		muMVPMatrixLoc = GLES20.glGetUniformLocation(hProgram, "uMVPMatrix");
+		muTexMatrixLoc = GLES20.glGetUniformLocation(hProgram, "uTexMatrix");
+		//
+		GLES20.glUniformMatrix4fv(muMVPMatrixLoc,
+			1, false, mMvpMatrix, 0);
+		GLES20.glUniformMatrix4fv(muTexMatrixLoc,
+			1, false, mMvpMatrix, 0);
+		GLES20.glVertexAttribPointer(maPositionLoc,
+			2, GLES20.GL_FLOAT, false, VERTEX_SZ, pVertex);
+		GLES20.glVertexAttribPointer(maTextureCoordLoc,
+			2, GLES20.GL_FLOAT, false, VERTEX_SZ, pTexCoord);
+		GLES20.glEnableVertexAttribArray(maPositionLoc);
+		GLES20.glEnableVertexAttribArray(maTextureCoordLoc);
+	}
 }
