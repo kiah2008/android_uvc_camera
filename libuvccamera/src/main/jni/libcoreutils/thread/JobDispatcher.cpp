@@ -12,21 +12,21 @@ static void SetThreadName(const char *name) {
     strncpy(thread_name, name, sizeof(thread_name));
     thread_name[sizeof(thread_name) - 1] = '\0';
     int res = pthread_setname_np(pthread_self(), thread_name);
-    FSP_CHECK_LOG(res != 0, "Can't set pthread names: name: \"%s\", error:%d", name, res);
+    CUTILS_CHECK_LOG(res != 0, "Can't set pthread names: name: \"%s\", error:%d", name, res);
 }
 
 cutils::JobDispatcher::JobDispatcher() {
-    FSP_CHECK_EQ(pthread_create(&thread_id_, nullptr, ThreadBody, this), 0);
+    CUTILS_CHECK_EQ(pthread_create(&thread_id_, nullptr, ThreadBody, this), 0);
 }
 
 cutils::JobDispatcher::~JobDispatcher() {
     if (IsCurrentThread()) {
-        FSP_CHECK(self_destruct_);
-        FSP_CHECK_EQ(pthread_detach(thread_id_), 0);
+        CUTILS_CHECK(self_destruct_);
+        CUTILS_CHECK_EQ(pthread_detach(thread_id_), 0);
     } else {
         // Give an invalid job to signal termination.
         PutJob({});
-        FSP_CHECK_EQ(pthread_join(thread_id_, nullptr), 0);
+        CUTILS_CHECK_EQ(pthread_join(thread_id_, nullptr), 0);
     }
 }
 
@@ -66,7 +66,7 @@ void cutils::JobDispatcher::ThreadBody() {
         Job job = GetJob();
         if (!job) {
             CheckComplete();
-            FSP_LOGE("get invalid jobs.");
+            CLOGE("get invalid jobs.");
             break;
         }
         job();
@@ -77,13 +77,13 @@ void cutils::JobDispatcher::ThreadBody() {
     }
 }
 
-FSP_STATUS cutils::JobDispatcher::Run(StatusDispatchFunction func) {
-    FSP_CHECK(func);
+CUTILS_STATUS cutils::JobDispatcher::Run(StatusDispatchFunction func) {
+    CUTILS_CHECK(func);
     if (IsCurrentThread()) {
         return func();
     }
     bool done = false;
-    FSP_STATUS status;
+    CUTILS_STATUS status;
     PutJob([this, func, &done, &status]() {
         status = func();
         std::unique_lock<std::mutex> lock(mutex_);
@@ -99,7 +99,7 @@ FSP_STATUS cutils::JobDispatcher::Run(StatusDispatchFunction func) {
 }
 
 void cutils::JobDispatcher::RunWithoutWaiting(VoidDispatchFunction func) {
-    FSP_CHECK(func);
+    CUTILS_CHECK(func);
     PutJob(std::move(func));
 }
 

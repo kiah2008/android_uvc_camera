@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.10.0)
-project(yuv_libs)
+project(uvccamera_libs)
 
 set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR}/outputs)
 
+ADD_SUBDIRECTORY(${CMAKE_SOURCE_DIR}/third_party/tests)
 ADD_SUBDIRECTORY(${CMAKE_SOURCE_DIR}/libcoreutils)
-
 #2.1.1
 ADD_SUBDIRECTORY(${CMAKE_SOURCE_DIR}/libjpeg-turbo)
 #ADD_SUBDIRECTORY(${CMAKE_SOURCE_DIR}/libjpeg-turbo-1.5.0)

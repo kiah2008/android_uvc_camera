@@ -50,9 +50,9 @@ void *ThreadPool::WorkerThread::ThreadBody(void *arg) {
 #if defined(__linux__)
     if (nice_priority_level != 0) {
         if (nice(nice_priority_level) != -1 || errno == 0) {
-            FSP_LOGD("Changed the nice priority level by %d ", nice_priority_level);
+            CLOGD("Changed the nice priority level by %d ", nice_priority_level);
         } else {
-            FSP_LOGW("Error : %s, fail to change nice priority %d", strerror(errno),
+            CLOGW("Error : %s, fail to change nice priority %d", strerror(errno),
                     nice_priority_level);
         }
     }
@@ -60,16 +60,16 @@ void *ThreadPool::WorkerThread::ThreadBody(void *arg) {
 #if 0
         if(nice_priority_level <= -10) {
             bind_core_and_set_priority();
-            FSP_LOGD("Pinned %s to great core", name.c_str());
+            CLOGD("Pinned %s to great core", name.c_str());
         } else if (nice_priority_level >= 10) {
             set_current_thread_affinity_mask(cutils::SMALL_CORE);
-            FSP_LOGD("Pinned %s to small core", name.c_str());
+            CLOGD("Pinned %s to small core", name.c_str());
         }
 #endif
     /*    for (const int cpu : selected_cpus) {
             cpu_mask += 1 << cpu;
         }
-        FSP_LOGD("cpu mask %x", cpu_mask);*/
+        CLOGD("cpu mask %x", cpu_mask);*/
 /*
         cpu_set_t cpu_set;
         CPU_ZERO(&cpu_set);
@@ -81,26 +81,26 @@ void *ThreadPool::WorkerThread::ThreadBody(void *arg) {
             errno == 0) {*/
 /*        if (syscall(__NR_sched_setaffinity, tid, sizeof(cpu_mask), &cpu_mask) != 0 ||
                 errno == 0) {
-            FSP_LOG("Pinned %s to core %s", name.c_str(),
+            CLOG("Pinned %s to core %s", name.c_str(),
                     StrJoin<const std::set<int>>(selected_cpus, ", ").c_str());
         } else {
-            FSP_LOG("Error : %s"
+            CLOG("Error : %s"
                     ".Failed to set affinity. %s", strerror(errno),
                     StrJoin<const std::set<int>>(selected_cpus, ", ").c_str());
         }*/
     }
     int error = pthread_setname_np(pthread_self(), name.c_str());
     if (error != 0) {
-        FSP_LOGD("Error : %s, Failed to set name for thread: %s", strerror(error), name.c_str());
+        CLOGD("Error : %s, Failed to set name for thread: %s", strerror(error), name.c_str());
     }
 #else
     if (nice_priority_level != 0 || !selected_cpus.empty()) {
-        FSP_LOG("Thread priority and processor affinity feature aren't "
+        CLOG("Thread priority and processor affinity feature aren't "
                 "supported on the current platform.");
     }
     int error = pthread_setname_np(name.c_str());
     if (error != 0) {
-        FSP_LOG("Error : %s Failed to set name for thread: %s", strerror(error), name);
+        CLOG("Error : %s Failed to set name for thread: %s", strerror(error), name);
     }
 #endif
     thread->pool_->RunWorker();
@@ -121,7 +121,7 @@ void *ThreadPool::WorkerThread::ThreadBody(void *arg) {
 void ThreadPool::RunWorker() {
     std::unique_lock<std::mutex> _l(mutex_);
     while (true) {
-//        FSP_LOGD("RunWorker %zu %p", tasks_.size(), this);
+//        CLOGD("RunWorker %zu %p", tasks_.size(), this);
         if (!tasks_.empty()) {
             std::function<void()> task = std::move(tasks_.front());
             tasks_.pop_front();
@@ -130,7 +130,7 @@ void ThreadPool::RunWorker() {
             _l.lock();
         } else {
             if (stopped_) {
-//                FSP_LOGD("RunWorker stopped!");
+//                CLOGD("RunWorker stopped!");
                 break;
             } else {
                 condition_.wait(_l);
@@ -144,7 +144,7 @@ const ThreadOptions &ThreadPool::thread_options() const {
 }
 
 void ThreadPool::Schedule(FUNC func) {
-//    FSP_LOGD("Schedule %p", this);
+//    CLOGD("Schedule %p", this);
     {
         std::unique_lock<std::mutex> _l(mutex_);
         tasks_.push_back(std::move(func));

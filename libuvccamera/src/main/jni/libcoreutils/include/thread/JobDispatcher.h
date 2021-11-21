@@ -14,7 +14,7 @@
 #include <pthread.h>
 
 namespace cutils {
-    typedef std::function<FSP_STATUS()> StatusDispatchFunction;
+    typedef std::function<CUTILS_STATUS()> StatusDispatchFunction;
     typedef std::function<void()> VoidDispatchFunction;
 
     class JobDispatcher {
@@ -27,7 +27,7 @@ namespace cutils {
 
         JobDispatcher &operator=(JobDispatcher) = delete;
 
-        FSP_STATUS Run(StatusDispatchFunction func);
+        CUTILS_STATUS Run(StatusDispatchFunction func);
 
         void WaitUntilDone();
         void RunWithoutWaiting(VoidDispatchFunction func);

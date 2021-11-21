@@ -70,7 +70,7 @@ namespace cutils {
     }
 
     ThreadPoolExecutor::~ThreadPoolExecutor() {
-        FSP_LOGD("Thread pool destroyed.");
+        CLOGD("Thread pool destroyed.");
     }
 
     void ThreadPoolExecutor::Schedule(std::function<void()> task) {
@@ -80,7 +80,7 @@ namespace cutils {
     void ThreadPoolExecutor::Start() {
         stack_size_ = thread_pool_.thread_options().stack_size();
         thread_pool_.StartWorkers();
-        FSP_LOGD("Started thread pool with %d threads", thread_pool_.num_threads());
+        CLOGD("Started thread pool with %d threads", thread_pool_.num_threads());
     }
 
 } //NS cutils

@@ -53,10 +53,10 @@ void cutils::bind_core_and_set_priority() {
     if(is_binder_core){
         int mask = BIG_CORE;
         if(is_binder_big_core) {
-            FSP_LOGD("bind big core");
+            CLOGD("bind big core");
         }else {
             mask = SMALL_CORE;
-            FSP_LOGD("bind small core");
+            CLOGD("bind small core");
         }
         set_current_thread_affinity_mask(mask);
     }

@@ -38,7 +38,7 @@ namespace cutils {
                 uint64 frequency = atoll(buffer);
                 return frequency;
             } else {
-                FSP_LOGE("couldn't read %s", path_or_status.c_str());
+                CLOGE("couldn't read %s", path_or_status.c_str());
                 return 0;
             }
         }
@@ -46,7 +46,7 @@ namespace cutils {
         std::set<int> InferLowerOrHigherCoreIds(bool lower) {
             std::vector<std::pair<int, uint64>> cpu_freq_pairs;
             int cores = NumCPUCores();
-            FSP_LOGD("num cores %d", cores);
+            CLOGD("num cores %d", cores);
             for (int cpu = 0; cpu < cores; ++cpu) {
                 auto freq = GetCpuMaxFrequency(cpu);
                 if (freq > 0) {
@@ -54,7 +54,7 @@ namespace cutils {
                 }
             }
             if (cpu_freq_pairs.empty()) {
-                FSP_LOGW("fail to query cores' info");
+                CLOGW("fail to query cores' info");
                 return {};
             }
 

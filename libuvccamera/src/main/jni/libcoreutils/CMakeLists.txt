@@ -12,24 +12,37 @@ add_definitions("-Wall -std=c++14 -DANDROID_NDK -DUSE_LOGALL  -DACCESS_RAW_DESCR
 
 aux_source_directory(${PROJECT_SOURCE_DIR}/base BASE_SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/cpu CPU_SRCS)
+aux_source_directory(${PROJECT_SOURCE_DIR}/gpu GPU_SRCS)
+aux_source_directory(${PROJECT_SOURCE_DIR}/port PORT_SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/thread THREAD_SRCS)
 aux_source_directory(${PROJECT_SOURCE_DIR}/utils UTIL_SRCS)
 
 set(SOURCES
         ${BASE_SRCS}
-        ${UTIL_SRCS}
-        ${THREAD_SRCS}
         ${CPU_SRCS}
+        ${GPU_SRCS}
+        ${PORT_SRCS}
+        ${THREAD_SRCS}
+        ${UTIL_SRCS}
         )
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
-#set_target_properties(uvccamera PROPERTIES
-#  VERSION ${libuvccamera_VERSION}
-#  SOVERSION ${libuvccamera_VERSION_MAJOR}
+#set_target_properties(${PROJECT_NAME} PROPERTIES
+#  VERSION ${${PROJECT_NAME}_VERSION}
+#  SOVERSION ${${PROJECT_NAME}_VERSION_MAJOR}
 #  # Exported name of target within namespace LibUVC
-##  EXPORT_NAME uvccamera
+##  EXPORT_NAME ${PROJECT_NAME}
 #)
+
+set(SYSTEM_EXTRA_LIBS
+        log
+        dl
+        m
+        android
+        z
+        GLESv3
+        EGL)
 
 
 LIST(APPEND ALL_INCLUDE
@@ -46,10 +59,7 @@ add_library(Cutils::CutilsShared ALIAS ${PROJECT_NAME})
 
 target_link_libraries(${PROJECT_NAME}
         PRIVATE
-        log
-        dl
-        m
-        android
+        ${SYSTEM_EXTRA_LIBS}
         )
 
 install(
@@ -82,3 +92,5 @@ install(FILES
         "${CMAKE_CURRENT_BINARY_DIR}/lib${PROJECT_NAME}Config.cmake"
         "${CMAKE_CURRENT_BINARY_DIR}/lib${PROJECT_NAME}ConfigVersion.cmake"
         DESTINATION lib/cmake/${PROJECT_NAME})
+
+

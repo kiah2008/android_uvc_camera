@@ -24,19 +24,19 @@ std::string Status::ToString() const {
     }
 }
 
-Status::Status(FSP_STATUS status) {
+Status::Status(CUTILS_STATUS status) {
     mState = std::unique_ptr<State>(new State);
     mState->code = status;
     mState->msg = std::string();
 }
 
-Status::Status(FSP_STATUS status, std::string &msg) {
+Status::Status(CUTILS_STATUS status, std::string &msg) {
     mState = std::unique_ptr<State>(new State);
     mState->code = status;
     mState->msg = std::string(msg);
 }
 
-Status::Status(FSP_STATUS status, std::string &&msg) {
+Status::Status(CUTILS_STATUS status, std::string &&msg) {
     mState = std::unique_ptr<State>(new State);
     mState->code = status;
     mState->msg = std::string(msg);
@@ -47,7 +47,7 @@ const std::string &Status::empty_string() {
     return *empty;
 }
 
-Status &Status::update(FSP_STATUS code) {
+Status &Status::update(CUTILS_STATUS code) {
     if (mState == nullptr) {
         mState.reset(new State{.code = code});
     } else {
@@ -75,8 +75,8 @@ Status &Status::operator<<(const std::string &x) {
     return *this;
 }
 
-FSP_STATUS Status::code() const {
-    return ok() ? FSP_STATUS::FSP_STATUS_OK : mState->code;
+CUTILS_STATUS Status::code() const {
+    return ok() ? CUTILS_STATUS::CUTILS_STATUS_OK : mState->code;
 }
 
 bool Status::operator==(const Status &x) const {
@@ -91,18 +91,18 @@ std::ostream &operator<<(std::ostream &os, const Status &x) {
 }
 
 bool Status::ok() const {
-    return (mState == NULL) || (mState->code == FSP_STATUS::FSP_STATUS_OK);
+    return (mState == NULL) || (mState->code == CUTILS_STATUS::CUTILS_STATUS_OK);
 }
 
 const std::string &Status::message() const {
     return ok() ? empty_string() : mState->msg;
 }
 
-bool Status::operator==(const FSP_STATUS &x) const {
+bool Status::operator==(const CUTILS_STATUS &x) const {
     return this->code() == x;
 }
 
-bool Status::operator!=(const FSP_STATUS &x) const {
+bool Status::operator!=(const CUTILS_STATUS &x) const {
     return !(*this == x);
 }
 
@@ -115,15 +115,15 @@ Status Status::CombinedStatus(
     // the error codes are the same.  Otherwise it is the same error code
     // as all of the (non-OK) statuses.  If statuses is empty or they are
     // all OK, then OkStatus() is returned.
-    FSP_STATUS error_code = FSP_STATUS_OK;
+    CUTILS_STATUS error_code = CUTILS_STATUS_OK;
     std::vector<std::string> errors;
     for (const Status &status : statuses) {
         if (!status.ok()) {
             errors.emplace_back(status.message());
-            if (error_code == FSP_STATUS_OK) {
+            if (error_code == CUTILS_STATUS_OK) {
                 error_code = status.code();
             } else if (error_code != status.code()) {
-                error_code = FSP_STATUS_UNKNOWN;
+                error_code = CUTILS_STATUS_UNKNOWN;
             }
         }
     }
@@ -141,59 +141,59 @@ Status &Status::operator<<(const int &x) {
 }
 
 
-const char *cutils::ErrorMessage(FSP_STATUS code) {
+const char *cutils::ErrorMessage(CUTILS_STATUS code) {
     const char *info;
     switch (code) {
-        case FSP_STATUS::FSP_STATUS_OK:
+        case CUTILS_STATUS::CUTILS_STATUS_OK:
             info = "OK";
             break;
-        case FSP_STATUS::FSP_STATUS_CANCEL:
+        case CUTILS_STATUS::CUTILS_STATUS_CANCEL:
             info = "Cancelled";
             break;
-        case FSP_STATUS::FSP_STATUS_UNKNOWN:
+        case CUTILS_STATUS::CUTILS_STATUS_UNKNOWN:
             info = "Unknown";
             break;
-        case FSP_STATUS::FSP_STATUS_INVALID:
+        case CUTILS_STATUS::CUTILS_STATUS_INVALID:
             info = "Invalid argument";
             break;
-        case FSP_STATUS::FSP_DEADLINE_EXCEEDED:
+        case CUTILS_STATUS::CUTILS_DEADLINE_EXCEEDED:
             info = "Deadline exceeded";
             break;
-        case FSP_STATUS::FSP_STATUS_NOT_FOUND:
+        case CUTILS_STATUS::CUTILS_STATUS_NOT_FOUND:
             info = "Not found";
             break;
-        case FSP_STATUS::FSP_STATUS_ALREADY_EXISTS:
+        case CUTILS_STATUS::CUTILS_STATUS_ALREADY_EXISTS:
             info = "Already exists";
             break;
-        case FSP_STATUS::FSP_STATUS_PERMISSION_DENNIED:
+        case CUTILS_STATUS::CUTILS_STATUS_PERMISSION_DENNIED:
             info = "Permission denied";
             break;
-        case FSP_STATUS::FSP_STATUS_RESOURCE_EXHAUSTED:
+        case CUTILS_STATUS::CUTILS_STATUS_RESOURCE_EXHAUSTED:
             info = "Resource exhausted";
             break;
-        case FSP_STATUS::FSP_STATUS_FAIL_PRECONDITION:
+        case CUTILS_STATUS::CUTILS_STATUS_FAIL_PRECONDITION:
             info = "Failed precondition";
             break;
-        case FSP_STATUS::FSP_STATUS_ABORT:
+        case CUTILS_STATUS::CUTILS_STATUS_ABORT:
             info = "Aborted";
             break;
-        case FSP_STATUS::FSP_STATUS_OUT_OF_RANGE:
+        case CUTILS_STATUS::CUTILS_STATUS_OUT_OF_RANGE:
             info = "Out of range";
             break;
-        case FSP_STATUS::FSP_STATUS_UNIMPLEMENTATION:
+        case CUTILS_STATUS::CUTILS_STATUS_UNIMPLEMENTATION:
             info = "Unimplemented";
             break;
-        case FSP_STATUS::FSP_STATUS_INTERNAL_ERROR:
+        case CUTILS_STATUS::CUTILS_STATUS_INTERNAL_ERROR:
             info = "Internal";
             break;
-        case FSP_STATUS::FSP_STATUS_UNAVAILABLE:
+        case CUTILS_STATUS::CUTILS_STATUS_UNAVAILABLE:
             info = "Unavailable";
             break;
-        case FSP_STATUS::FSP_STATUS_DATALOSS:
+        case CUTILS_STATUS::CUTILS_STATUS_DATALOSS:
             info = "Data loss";
             break;
         default:
-            FSP_LOGE("unknown type %d", code);
+            CLOGE("unknown type %d", code);
             info = "Unknown Type";
             assert(0);
             break;
